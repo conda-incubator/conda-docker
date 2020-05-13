@@ -15,62 +15,35 @@ not normally allow.
 
 ** Saving a Docker Image for Inspection
 
-#+begin_src shell :dir /tmp :results none
-  docker save continuumio/miniconda3 -o miniconda3.tar
+Pull and ensure that filesystem exists
+
+#+begin_src python :results none
+  from docker_envs.docker.client import pull, save
+
+  pull('continuumio/miniconda3', 'latest')
+  save('continuumio/miniconda3', 'latest', '/tmp/miniconda3.tar')
 #+end_src
 
-List files within docker image
-
-#+begin_src shell :dir /tmp
-  tar -tvf miniconda3.tar
-#+end_src
-
-#+RESULTS:
-| -rw-r--r-- | 0/0 |      3190 | 2019-10-16 | 16:40 | 406f2b43ea59a121345b188cc94595c539014c5b644bf95c61458a9b5b2905ba.json      |
-| drwxr-xr-x | 0/0 |         0 | 2019-10-16 | 16:40 | 54529151b1a102d2735e5f35d587df54ffff729dadd2a93b5b506ca2154eb608/          |
-| -rw-r--r-- | 0/0 |         3 | 2019-10-16 | 16:40 | 54529151b1a102d2735e5f35d587df54ffff729dadd2a93b5b506ca2154eb608/VERSION   |
-| -rw-r--r-- | 0/0 |       406 | 2019-10-16 | 16:40 | 54529151b1a102d2735e5f35d587df54ffff729dadd2a93b5b506ca2154eb608/json      |
-| -rw-r--r-- | 0/0 |  72479232 | 2019-10-16 | 16:40 | 54529151b1a102d2735e5f35d587df54ffff729dadd2a93b5b506ca2154eb608/layer.tar |
-| drwxr-xr-x | 0/0 |         0 | 2019-10-16 | 16:40 | 5fbc127d24f0a0b695e31cadbf177dbb48179ac139e915b591a9bcacec951abb/          |
-| -rw-r--r-- | 0/0 |         3 | 2019-10-16 | 16:40 | 5fbc127d24f0a0b695e31cadbf177dbb48179ac139e915b591a9bcacec951abb/VERSION   |
-| -rw-r--r-- | 0/0 |      1358 | 2019-10-16 | 16:40 | 5fbc127d24f0a0b695e31cadbf177dbb48179ac139e915b591a9bcacec951abb/json      |
-| -rw-r--r-- | 0/0 | 156382720 | 2019-10-16 | 16:40 | 5fbc127d24f0a0b695e31cadbf177dbb48179ac139e915b591a9bcacec951abb/layer.tar |
-| drwxr-xr-x | 0/0 |         0 | 2020-03-12 | 15:38 | a7a02540d8d6fab89fba59e6780ee378a983a3a31a259033571e81247782c13c/          |
-| -rw-r--r-- | 0/0 |         3 | 2020-03-12 | 15:38 | a7a02540d8d6fab89fba59e6780ee378a983a3a31a259033571e81247782c13c/VERSION   |
-| -rw-r--r-- | 0/0 |       482 | 2020-03-12 | 15:38 | a7a02540d8d6fab89fba59e6780ee378a983a3a31a259033571e81247782c13c/json      |
-| -rw-r--r-- | 0/0 | 215536640 | 2020-03-12 | 15:38 | a7a02540d8d6fab89fba59e6780ee378a983a3a31a259033571e81247782c13c/layer.tar |
-| -rw-r--r-- | 0/0 |      3192 | 2020-03-12 | 15:38 | b4adc22212f1c4628a1922a5669640e86734d0da3c26a0c35cb034e388c033ae.json      |
-| drwxr-xr-x | 0/0 |         0 | 2020-03-12 | 15:38 | bc21c2b854d50c4f4ce5f27516964b302917b2f058a2a7093c1fc36b9eb8e6c3/          |
-| -rw-r--r-- | 0/0 |         3 | 2020-03-12 | 15:38 | bc21c2b854d50c4f4ce5f27516964b302917b2f058a2a7093c1fc36b9eb8e6c3/VERSION   |
-| -rw-r--r-- | 0/0 |      1358 | 2020-03-12 | 15:38 | bc21c2b854d50c4f4ce5f27516964b302917b2f058a2a7093c1fc36b9eb8e6c3/json      |
-| -rw-r--r-- | 0/0 | 155091968 | 2020-03-12 | 15:38 | bc21c2b854d50c4f4ce5f27516964b302917b2f058a2a7093c1fc36b9eb8e6c3/layer.tar |
-| drwxr-xr-x | 0/0 |         0 | 2020-03-12 | 15:38 | beee5b7f61efbd6796ae5c0f4d8c47c944c21c7831a2dd505cc07af7c334b39a/          |
-| -rw-r--r-- | 0/0 |         3 | 2020-03-12 | 15:38 | beee5b7f61efbd6796ae5c0f4d8c47c944c21c7831a2dd505cc07af7c334b39a/VERSION   |
-| -rw-r--r-- | 0/0 |       406 | 2020-03-12 | 15:38 | beee5b7f61efbd6796ae5c0f4d8c47c944c21c7831a2dd505cc07af7c334b39a/json      |
-| -rw-r--r-- | 0/0 |  72479232 | 2020-03-12 | 15:38 | beee5b7f61efbd6796ae5c0f4d8c47c944c21c7831a2dd505cc07af7c334b39a/layer.tar |
-| drwxr-xr-x | 0/0 |         0 | 2019-10-16 | 16:40 | eb42392a28eb2c0eaca6d515d1badb7e83d85f6fd9ddf649feba432b8a976669/          |
-| -rw-r--r-- | 0/0 |         3 | 2019-10-16 | 16:40 | eb42392a28eb2c0eaca6d515d1badb7e83d85f6fd9ddf649feba432b8a976669/VERSION   |
-| -rw-r--r-- | 0/0 |       482 | 2019-10-16 | 16:40 | eb42392a28eb2c0eaca6d515d1badb7e83d85f6fd9ddf649feba432b8a976669/json      |
-| -rw-r--r-- | 0/0 | 215312896 | 2019-10-16 | 16:40 | eb42392a28eb2c0eaca6d515d1badb7e83d85f6fd9ddf649feba432b8a976669/layer.tar |
-| -rw-r--r-- | 0/0 |       742 | 1969-12-31 | 19:00 | manifest.json                                                              |
-| -rw-r--r-- | 0/0 |       181 | 1969-12-31 | 19:00 | repositories                                                               |
-
-#+begin_src shell :dir /tmp :var filename="eb42392a28eb2c0eaca6d515d1badb7e83d85f6fd9ddf649feba432b8a976669/json" :results output
-  tar -xf miniconda3.tar $filename
-  cat $filename
-#+end_src
-
-#+RESULTS:
-: {"id":"eb42392a28eb2c0eaca6d515d1badb7e83d85f6fd9ddf649feba432b8a976669","parent":"54529151b1a102d2735e5f35d587df54ffff729dadd2a93b5b506ca2154eb608","created":"1969-12-31T19:00:00-05:00","container_config":{"Hostname":"","Domainname":"","User":"","AttachStdin":false,"AttachStdout":false,"AttachStderr":false,"Tty":false,"OpenStdin":false,"StdinOnce":false,"Env":null,"Cmd":null,"Image":"","Volumes":null,"WorkingDir":"","Entrypoint":null,"OnBuild":null,"Labels":null},"os":"linux"}
+Modify docker image from filesystem
 
 #+begin_src python :results output
-from docker_envs.docker import Image
+  from docker_envs.docker.base import Image
 
-images = Image.from_file('/tmp/miniconda3.tar')
-# print(images[0].layers['5fbc127d24f0a0b695e31cadbf177dbb48179ac139e915b591a9bcacec951abb'].list())
-# images[0].remove_layer()
-images[0].add_layer('asdfasdf')
-images[0].write('example.tar')
+  images = Image.from_file('/tmp/miniconda3.tar')
+  # images[0].remove_layer()
+  images[0].name = 'this-is-a-test'
+  images[0].add_layer_path('./')
+  images[0].add_layer_contents({
+      'this/is/a/test1': b'asdfasdf',
+      'this/is/a/test2': b'asdfasdf'
+  })
+  images[0].write_file('example.tar')
 #+end_src
 
-#+RESULTS:
+Load docker image from the filesystem
+
+#+begin_src python
+  from docker_envs.docker.client import load
+
+  load('example.tar')
+#+end_src
