@@ -32,6 +32,10 @@ Downloading docker images without docker!
   image = 'continuumio/miniconda3'
   tag = 'latest'
   image = pull_image(image, tag)
+  images[0].add_layer_path(
+      '/home/costrouc/scratch/conda-envs',
+      filter=conda_file_filter())
+
   image.name = 'qwerqwerqwerqwer'
   image.write_file('test.tar')
 #+end_src
@@ -64,3 +68,42 @@ Load docker image from the filesystem
 
   load('example.tar')
 #+end_src
+
+Conda docker images
+
+#+begin_src python
+  from docker_envs.registry.client import pull_image
+  from docker_envs.conda import conda_file_filter
+
+  image = 'continuumio/miniconda3'
+  tag = 'latest'
+  image = pull_image(image, tag)
+  image.add_layer_path(
+      '/home/costrouc/scratch/conda-envs',
+      filter=conda_file_filter())
+  image.name = 'qwerqwerqwerqwer'
+  image.write_file('test.tar')
+#+end_src
+
+#+RESULTS:
+
+#+begin_src shell
+  python -m docker_envs build -b continuumio/miniconda3:latest -o docker-envs.tar
+#+end_src
+
+#+RESULTS:
+
+#+begin_src shell
+
+#+end_src
+
+#+RESULTS:
+| docker_envs        |
+| docker-envs.tar    |
+| example-filter.tar |
+| example.tar        |
+| README.md          |
+| #README.org#       |
+| README.org         |
+| shell.nix          |
+| test.tar           |

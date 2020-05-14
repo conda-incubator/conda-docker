@@ -77,7 +77,7 @@ def write_v1_layer_metadata(layer):
     }
 
     return json.dumps(
-        {k: getattr(layer, k) for k in keys if getattr(layer, k) is not None}
+        {k: str(getattr(layer, k)) for k in keys if getattr(layer, k) is not None}
     ).encode('utf-8')
 
 

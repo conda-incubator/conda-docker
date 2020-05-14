@@ -28,10 +28,10 @@ class Layer:
 
 
 class Image:
-    def __init__(self, name, tag, layers):
+    def __init__(self, name, tag, layers=None):
         self.name = name
         self.tag = tag
-        self.layers = layers
+        self.layers = layers or []
 
     def remove_layer(self):
         self.layers.pop(0)
@@ -45,16 +45,23 @@ class Image:
         self._add_layer(digest)
 
     def _add_layer(self, digest):
-        self.layers.insert(0, Layer(
+        if len(self.layers) == 0:
+            parent_id = None
+        else:
+            self.layers[0].id
+
+        layer = Layer(
             id=secrets.token_hex(32),
-            parent=self.layers[0].id,
+            parent=parent_id,
             architecture='amd64',
             os='linux',
             created=datetime.now(timezone.utc).astimezone().isoformat(),
             author='docker_envs',
             checksum=None,
             size=len(digest),
-            content=digest))
+            content=digest)
+
+        self.layers.insert(0, layer)
 
     @staticmethod
     def from_file(filename):
