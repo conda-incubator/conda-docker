@@ -48,7 +48,7 @@ class Image:
         if len(self.layers) == 0:
             parent_id = None
         else:
-            self.layers[0].id
+            parent_id = self.layers[0].id
 
         layer = Layer(
             id=secrets.token_hex(32),

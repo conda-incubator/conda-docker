@@ -22,7 +22,7 @@ def cli(args):
 
 def init_subcommand_build(subparser):
     parser = subparser.add_parser('build', help='Docker Build Environment')
-    parser.add_argument('-b', '--base', type=str, default='continuumio/minconda3:lastet', help='base image:tag to use for docker build')
+    parser.add_argument('-b', '--base', type=str, default='continuumio/miniconda3:latest', help='base image:tag to use for docker build')
     parser.add_argument('-i', '--image', type=str, default='docker_envs:latest', help='image:tag for output of docker envs build')
     parser.add_argument('-p', '--package', action='append', help='packages to install in image')
     parser.add_argument('-o', '--output', type=str, help='filename for docker image', required=True)

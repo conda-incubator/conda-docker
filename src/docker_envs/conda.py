@@ -4,6 +4,7 @@ import logging
 
 from docker_envs.docker.base import Image
 from docker_envs.registry.client import pull_image
+from docker_envs.utils import timer
 
 logger = logging.getLogger(__name__)
 
@@ -39,18 +40,22 @@ def build_docker_environment(base_image, output_image, packages, output_filename
             image = Image(name=output_image_name, tag=output_image_tag)
         else:
             logger.info(f'pulling base image {base_image_name}:{base_image_tag}')
-            image = pull_image(base_image_name, base_image_tag)
-            image.name = output_image_name
-            image.tag = output_image_tag
+            with timer(logger, 'pulling base image'):
+                image = pull_image(base_image_name, base_image_tag)
+                image.name = output_image_name
+                image.tag = output_image_tag
 
         logger.info('building conda environment')
-        create(str(tmpdir), packages)
+        with timer(logger, 'building conda environment'):
+            create(str(tmpdir), packages)
 
         logger.info(f'adding conda environment layer')
-        image.add_layer_path(str(tmpdir), filter=conda_file_filter())
+        with timer(logger, 'adding conda environment layer'):
+            image.add_layer_path(str(tmpdir), filter=conda_file_filter())
 
         logger.info(f'writing docker file to filesystem')
-        image.write_file(output_filename)
+        with timer(logger, 'writing docker file'):
+            image.write_file(output_filename)
 
 
 def create(prefix, packages):
