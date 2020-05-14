@@ -35,16 +35,16 @@ def build_docker_environment(base_image, output_image, packages, output_filename
     output_image_name, output_image_tag = parse_image_name(output_image)
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger.info('building conda environment')
-        create(str(tmpdir), packages)
-
         if base_image == 'scratch':
+            image = Image(name=output_image_name, tag=output_image_tag)
+        else:
             logger.info(f'pulling base image {base_image_name}:{base_image_tag}')
             image = pull_image(base_image_name, base_image_tag)
             image.name = output_image_name
             image.tag = output_image_tag
-        else:
-            image = Image(name=output_image_name, tag=output_image_tag)
+
+        logger.info('building conda environment')
+        create(str(tmpdir), packages)
 
         logger.info(f'adding conda environment layer')
         image.add_layer_path(str(tmpdir), filter=conda_file_filter())

@@ -25,7 +25,7 @@ def init_subcommand_build(subparser):
     parser.add_argument('-b', '--base', type=str, default='continuumio/minconda3:lastet', help='base image:tag to use for docker build')
     parser.add_argument('-i', '--image', type=str, default='docker_envs:latest', help='image:tag for output of docker envs build')
     parser.add_argument('-p', '--package', action='append', help='packages to install in image')
-    parser.add_argument('-o', '--output', type=str, help='filename for docker image')
+    parser.add_argument('-o', '--output', type=str, help='filename for docker image', required=True)
     parser.set_defaults(func=handle_conda_build)
 
 
