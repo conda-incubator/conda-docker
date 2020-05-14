@@ -24,21 +24,38 @@ Pull and ensure that filesystem exists
   save('continuumio/miniconda3', 'latest', '/tmp/miniconda3.tar')
 #+end_src
 
+Downloading docker images without docker!
+
+#+begin_src python
+  from docker_envs.registry.client import pull_image
+
+  image = 'continuumio/miniconda3'
+  tag = 'latest'
+  image = pull_image(image, tag)
+  image.name = 'qwerqwerqwerqwer'
+  image.write_file('test.tar')
+#+end_src
+
 Modify docker image from filesystem
 
 #+begin_src python :results output
   from docker_envs.docker.base import Image
+  from docker_envs.conda import conda_file_filter
 
   images = Image.from_file('/tmp/miniconda3.tar')
   # images[0].remove_layer()
   images[0].name = 'this-is-a-test'
-  images[0].add_layer_path('./')
+  images[0].add_layer_path(
+      '/home/costrouc/scratch/conda-envs',
+      filter=conda_file_filter())
   images[0].add_layer_contents({
       'this/is/a/test1': b'asdfasdf',
       'this/is/a/test2': b'asdfasdf'
   })
-  images[0].write_file('example.tar')
+  images[0].write_file('example-filter.tar')
 #+end_src
+
+#+RESULTS:
 
 Load docker image from the filesystem
 

@@ -7,7 +7,5 @@ let
   pythonPackages = pkgs.python3Packages;
 in
 pkgs.mkShell {
-  buildInputs = [
-    pythonPackages.fastapi
-  ];
+  buildInputs = [ pkgs.python3 ];
 }
