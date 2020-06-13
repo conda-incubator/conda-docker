@@ -2,9 +2,9 @@ import subprocess
 import tempfile
 import logging
 
-from docker_envs.docker.base import Image
-from docker_envs.registry.client import pull_image
-from docker_envs.utils import timer
+from conda_docker.docker.base import Image
+from conda_docker.registry.client import pull_image
+from conda_docker.utils import timer
 
 logger = logging.getLogger(__name__)
 

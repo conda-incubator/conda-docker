@@ -4,7 +4,7 @@ import tarfile
 import io
 import gzip
 
-from docker_envs.docker.base import Image, Layer
+from conda_docker.docker.base import Image, Layer
 
 
 def get_request(url, headers=None):

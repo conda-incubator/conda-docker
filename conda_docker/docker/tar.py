@@ -21,7 +21,7 @@ def _add_file(tar, filename, content):
 
 
 def _parse_v1_layer(tar, layer_id):
-    from docker_envs.docker.base import Layer
+    from conda_docker.docker.base import Layer
 
     d = _extract_json(tar, f'{layer_id}/json')
     content = _extract_file(tar, f'{layer_id}/layer.tar')
@@ -39,7 +39,7 @@ def _parse_v1_layer(tar, layer_id):
 
 
 def parse_v1(tar):
-    from docker_envs.docker.base import Image
+    from conda_docker.docker.base import Image
 
     d = _extract_json(tar, 'repositories')
 

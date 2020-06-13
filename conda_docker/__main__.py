@@ -1,7 +1,7 @@
 import sys
 import logging
 
-from docker_envs.cli import cli
+from conda_docker.cli import cli
 
 
 def main():

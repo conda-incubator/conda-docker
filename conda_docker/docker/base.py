@@ -3,7 +3,7 @@ import tarfile
 import secrets
 from datetime import datetime, timezone
 
-from docker_envs.docker.tar import (
+from conda_docker.docker.tar import (
     parse_v1, write_v1,
     write_tar_from_contents,
     write_tar_from_path
@@ -56,7 +56,7 @@ class Image:
             architecture='amd64',
             os='linux',
             created=datetime.now(timezone.utc).astimezone().isoformat(),
-            author='docker_envs',
+            author='conda_docker',
             checksum=None,
             size=len(digest),
             content=digest)
