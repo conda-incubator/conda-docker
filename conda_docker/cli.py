@@ -1,6 +1,6 @@
-import argparse
 import sys
-
+import logging
+import argparse
 
 from conda_docker.conda import build_docker_environment
 from conda_docker.logging import init_logging
@@ -31,3 +31,11 @@ def init_subcommand_build(subparser):
 
 def handle_conda_build(args):
     build_docker_environment(args.base, args.image, args.package, args.output)
+
+
+def main(args=None):
+    args = sys.argv[1:] if args is None else args
+    try:
+        cli(args)
+    except KeyboardInterrupt:
+        logging.shutdown()

@@ -1,14 +1,4 @@
-import sys
-import logging
-
-from conda_docker.cli import cli
-
-
-def main():
-    try:
-        cli(sys.argv[1:])
-    except KeyboardInterrupt:
-        logging.shutdown()
+from conda_docker.cli import main
 
 
 if __name__ == "__main__":
