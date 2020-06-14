@@ -4,14 +4,17 @@ import secrets
 from datetime import datetime, timezone
 
 from conda_docker.docker.tar import (
-    parse_v1, write_v1,
+    parse_v1,
+    write_v1,
     write_tar_from_contents,
-    write_tar_from_path
+    write_tar_from_path,
 )
 
 
 class Layer:
-    def __init__(self, id, parent, architecture, os, created, author, checksum, size, content):
+    def __init__(
+        self, id, parent, architecture, os, created, author, checksum, size, content
+    ):
         self.created = created
         self.author = author
         self.id = id
@@ -37,7 +40,9 @@ class Image:
         self.layers.pop(0)
 
     def add_layer_path(self, path, arcpath=None, recursive=True, filter=None):
-        digest = write_tar_from_path(path, arcpath=arcpath, recursive=recursive, filter=filter)
+        digest = write_tar_from_path(
+            path, arcpath=arcpath, recursive=recursive, filter=filter
+        )
         self._add_layer(digest)
 
     def add_layer_contents(self, contents):
@@ -53,13 +58,14 @@ class Image:
         layer = Layer(
             id=secrets.token_hex(32),
             parent=parent_id,
-            architecture='amd64',
-            os='linux',
+            architecture="amd64",
+            os="linux",
             created=datetime.now(timezone.utc).astimezone().isoformat(),
-            author='conda_docker',
+            author="conda_docker",
             checksum=None,
             size=len(digest),
-            content=digest)
+            content=digest,
+        )
 
         self.layers.insert(0, layer)
 
@@ -68,8 +74,8 @@ class Image:
         tar = tarfile.TarFile(filename)
         return parse_v1(tar)
 
-    def write_file(self, filename, version='v1'):
-        if version != 'v1':
-            raise ValueError('only support writting v1 spec')
+    def write_file(self, filename, version="v1"):
+        if version != "v1":
+            raise ValueError("only support writting v1 spec")
 
         write_v1(self, filename)
