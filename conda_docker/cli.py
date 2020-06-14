@@ -48,7 +48,7 @@ def handle_conda_build(args):
     records = tuple([rd[r.name] for r in precs])
     # now build image
     build_docker_environment(args.base, args.image, records, args.output, default_prefix,
-        user_conda, channels_remap)
+        download_dir, user_conda, channels_remap)
 
 
 def main(args=None):

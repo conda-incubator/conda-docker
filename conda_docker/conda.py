@@ -185,9 +185,9 @@ def write_repodata_records(download_dir, records, host_pkgs_dir, channels_remap)
         fname = record.fn
         if fname.endswith(".conda"):
             distname = fname[:-6]
-        elif filename_dist(dist).endswith(".tar.bz2"):
+        elif fname.endswith(".tar.bz2"):
             distname = fname[:-8]
-        record_file = join(distname, 'info', 'repodata_record.json')
+        record_file = os.path.join(distname, 'info', 'repodata_record.json')
         record_file_src = os.path.join(download_dir, record_file)
 
         with open(record_file_src, 'r') as rf:
@@ -202,7 +202,7 @@ def write_repodata_records(download_dir, records, host_pkgs_dir, channels_remap)
             json.dump(rr_json, rf, indent=2, sort_keys=True)
 
 
-def chroot_install(new_root, records, orig_prefix, user_conda, channels_remap):
+def chroot_install(new_root, records, orig_prefix, download_dir, user_conda, channels_remap):
     """Installs conda packages into a new root environment"""
     # Some terminology:
     #   orig - the conda directory / environment we are copying from
@@ -263,7 +263,7 @@ def chroot_install(new_root, records, orig_prefix, user_conda, channels_remap):
 
 
 def build_docker_environment(base_image, output_image, records, output_filename,
-        default_prefix, user_conda, channels_remap
+        default_prefix, download_dir, user_conda, channels_remap
     ):
     def parse_image_name(name):
         parts = name.split(':')
@@ -286,7 +286,8 @@ def build_docker_environment(base_image, output_image, records, output_filename,
 
         logger.info('building conda environment')
         with timer(logger, 'building conda environment'):
-            chroot_install(str(tmpdir), records, default_prefix, user_conda, channels_remap)
+            chroot_install(str(tmpdir), records, default_prefix, download_dir,
+                user_conda, channels_remap)
 
         logger.info(f'adding conda environment layer')
         with timer(logger, 'adding conda environment layer'):
