@@ -181,48 +181,14 @@ def write_urls_txt(records, host_pkgs_dir, channels_remap):
     with open(fname, 'w') as f:
         f.write(s)
 
-"""
-def write_index_cache(info, dst_dir, records):
-    cache_dir = join(dst_dir, 'cache')
 
-    if not isdir(cache_dir):
-        os.makedirs(cache_dir)
+def write_environments_txt(new_root):
+    # this avoids a bug with not being able to write to the regsirty
+    host_home_dotconda = os.path.join(new_root, "root", ".conda")
+    os.makedirs(host_home_dotconda, exist_ok=True)
+    with open(os.path.join(host_home_dotconda, "environments.txt"), "w") as f:
+        f.write("/opt/conda\n")
 
-    _platforms = info['_platform'], 'noarch'
-    _remaps = {url['src'].rstrip('/'): url['dest'].rstrip('/')
-               for url in info.get('channels_remap', [])}
-    _urls = all_channel_urls(url.rstrip('/') for url in list(_remaps) +
-                             info.get('channels', []) +
-                             info.get('conda_default_channels', []))
-    repodatas = {url: get_repodata(url) for url in _urls}
-
-    for url, _ in info['_urls']:
-        src, subdir, fn = url.rsplit('/', 2)
-        dst = _remaps.get(src)
-        if dst is not None:
-            src = '%s/%s' % (src, subdir)
-            dst = '%s/%s' % (dst, subdir)
-            if dst not in repodatas:
-                repodatas[dst] =  {
-                    '_url': dst,
-                    'info': {'subdir': subdir},
-                    'packages': {},
-                    'packages.conda': {},
-                    'removed': []
-                }
-            loc = 'packages.conda' if fn.endswith('.conda') else 'packages'
-            repodatas[dst][loc][fn] = repodatas[src][loc][fn]
-    for src in _remaps:
-        for subdir in _platforms:
-            del repodatas['%s/%s' % (src, subdir)]
-
-    for url, repodata in repodatas.items():
-        write_repodata(cache_dir, url, repodata, used_packages)
-
-    for cache_file in os.listdir(cache_dir):
-        if not cache_file.endswith(".json"):
-            os.unlink(join(cache_dir, cache_file))
-"""
 
 def write_conda_meta(host_conda_opt, records, user_conda):
     cmd = os.path.split(user_conda)[-1]
@@ -301,6 +267,7 @@ def chroot_install(new_root, records, orig_prefix, download_dir, user_conda, cha
         f.write(s)
 
     # set up host as base env
+    write_environments_txt(new_root)
     write_urls(records, host_pkgs_dir, channels_remap)
     write_urls_txt(records, host_pkgs_dir, channels_remap)
     write_conda_meta(host_conda_opt, records, user_conda)
@@ -314,44 +281,22 @@ def chroot_install(new_root, records, orig_prefix, download_dir, user_conda, cha
     for tool, host_tool in zip(bin_tools, host_bin_tools):
         shutil.copy2("/bin/" + tool, host_tool)
 
-    host_home_dotconda = os.path.join(new_root, "root", ".conda")
-    os.makedirs(host_home_dotconda, exist_ok=True)
-    with open(os.path.join(host_home_dotconda, "environments.txt"), "w") as f:
-        f.write("/opt/conda\n")
-    # now install packages in chroot
+    # extract packages
     subprocess.check_output(
         [orig_standalone, "constructor", "--prefix", host_conda_opt, "--extract-conda-pkgs"]
     )
-    #import pdb; pdb.set_trace()
+    # now install packages in chroot
     env = dict(os.environ)
     env["CONDA_SAFETY_CHECKS"] = "disabled"
     env["CONDA_EXTRA_SAFETY_CHECKS"] = "no"
     env["CONDA_PKGS_DIRS"] = "/opt/conda/pkgs"
     env["CONDA_ROOT"] = "/opt/conda"
     env["HOME"] = "/root"
-    try:
-        subprocess.check_output([
-            "fakechroot",
-            "chroot", new_root,
-            #"/bin/bash", "-c",
-            "/_conda.exe", "install", "--offline",
-            "--file", "/opt/conda/pkgs/env.txt", "-y", "--prefix", "/opt/conda",
-            #"export CONDA_ROOT=/opt/conda; "
-            #"export CONDA_EXE=/_conda.exe; "
-            #"export CONDA_PREFIX=/opt/conda; "
-            #"unset PYTHON_SYSCONFIGDATA_NAME _CONDA_PYTHON_SYSCONFIGDATA_NAME; "
-            #"cd /opt/conda; "
-            #"/opt/conda/_conda.exe constructor --extract-tar --prefix /opt/conda; "
-            #"/opt/conda/_conda.exe install --offline "
-            #"--file /opt/conda/pkgs/env.txt -y --prefix /opt/conda || "
-            #"/bin/mv /libpython* /opt/conda || "
-            #"/_conda.exe install --offline "
-            #"--file /opt/conda/pkgs/env.txt -y --prefix /opt/conda; "
+    subprocess.call([
+        "fakechroot", "chroot", new_root, "/_conda.exe", "install", "--offline",
+        "--file", "/opt/conda/pkgs/env.txt", "-y", "--prefix", "/opt/conda",
         ], env=env, cwd=host_conda_opt,
-        )
-    except:
-        print("new_root", new_root)
-        import pdb; pdb.set_trace()
+    )
 
     # clean up hard links
     os.remove(host_standalone)
@@ -361,6 +306,15 @@ def chroot_install(new_root, records, orig_prefix, download_dir, user_conda, cha
     for host_tool in host_bin_tools:
         os.remove(host_tool)
     os.rmdir(host_bin)
+
+    # remove files outside of /opt/conda dir
+    for entry in os.scandir(new_root):
+        if entry.name == "opt":
+            continue
+        elif entry.is_file():
+            os.remove(entry)
+        else:
+            shutil.rmtree(entry)
 
 
 def build_docker_environment(base_image, output_image, records, output_filename,
