@@ -346,12 +346,8 @@ def build_docker_environment(base_image, output_image, records, output_filename,
 
         logger.info(f'adding conda environment layer')
         with timer(logger, 'adding conda environment layer'):
-            image.add_layer_path(str(tmpdir), filter=conda_file_filter())
+            image.add_layer_path(str(tmpdir), arcpath="/", filter=conda_file_filter())
 
         logger.info(f'writing docker file to filesystem')
         with timer(logger, 'writing docker file'):
             image.write_file(output_filename)
-
-
-def create(prefix, packages):
-    subprocess.check_output(['conda', 'create', '-y', '-p', prefix] + list(packages))

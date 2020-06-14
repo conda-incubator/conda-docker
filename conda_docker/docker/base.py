@@ -36,8 +36,8 @@ class Image:
     def remove_layer(self):
         self.layers.pop(0)
 
-    def add_layer_path(self, path, recursive=True, filter=None):
-        digest = write_tar_from_path(path, recursive=recursive, filter=filter)
+    def add_layer_path(self, path, arcpath=None, recursive=True, filter=None):
+        digest = write_tar_from_path(path, arcpath=arcpath, recursive=recursive, filter=filter)
         self._add_layer(digest)
 
     def add_layer_contents(self, contents):

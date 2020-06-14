@@ -96,9 +96,9 @@ def write_tar_from_contents(contents):
     return digest.getvalue()
 
 
-def write_tar_from_path(path, basepath=None, recursive=True, filter=None):
+def write_tar_from_path(path, arcpath=None, recursive=True, filter=None):
     digest = io.BytesIO()
     with tarfile.TarFile(mode='w', fileobj=digest) as tar:
-        tar.add(path, recursive=recursive, filter=filter)
+        tar.add(path, arcname=arcpath, recursive=recursive, filter=filter)
     digest.seek(0)
     return digest.getvalue()
