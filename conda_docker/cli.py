@@ -39,9 +39,16 @@ def handle_conda_build(args):
     user_conda = find_user_conda() if args.conda_exe is None else args.conda_exe
     info = conda_info(user_conda)
     download_dir = info["pkgs_dirs"][0]
+    default_prefix = info["default_prefix"]
+    channels_remap = info.get('channels_remap', [])
     precs = find_precs(user_conda, download_dir, name=args.name, prefix=args.prefix)
     records = fetch_precs(download_dir, precs)
-    #build_docker_environment(args.base, args.image, args.package, args.output)
+    # sort records in dependency order, as given by precs
+    rd = {r.name: r for r in records}
+    records = tuple([rd[r.name] for r in precs])
+    # now build image
+    build_docker_environment(args.base, args.image, records, args.output, default_prefix,
+        user_conda, channels_remap)
 
 
 def main(args=None):

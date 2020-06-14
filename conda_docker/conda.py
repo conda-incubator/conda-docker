@@ -5,6 +5,8 @@
 import os
 import sys
 import json
+import time
+import shutil
 import logging
 import tempfile
 import subprocess
@@ -16,6 +18,7 @@ try:
     from conda.models.records import PackageCacheRecord
 except ImportError:
     from conda.models.package_cache_record import PackageCacheRecord
+from conda.models.dist import Dist
 
 from conda_docker.docker.base import Image
 from conda_docker.registry.client import pull_image
@@ -39,6 +42,19 @@ def conda_file_filter(
         return tar_info
 
     return _tar_filter
+
+
+def get_final_url(channels_remap, url):
+    for entry in channels_remap:
+        src = entry['src']
+        dst = entry['dest']
+        if url.startswith(src):
+            new_url = url.replace(src, dst)
+            if url.endswith(".tar.bz2"):
+              print("WARNING: You need to make the package {} available "
+                    "at {}".format(url.rsplit('/', 1)[1], new_url))
+            return new_url
+    return url
 
 
 def _precs_from_environment(environment, list_flag, download_dir, user_conda):
@@ -119,9 +135,9 @@ def fetch_precs(download_dir, precs):
 
         if (os.path.isfile(package_tarball_full_path)
             and md5_files([package_tarball_full_path]) == prec.md5):
-            print('already have: {0}'.format(prec.fn), file=sys.stderr)
+            logger.info(f'already have: {prec.fn}')
         else:
-            print('fetching: {0}'.format(prec.fn), file=sys.stderr)
+            logger.info(f'fetching: {prec.fn}')
             download(prec.url, os.path.join(download_dir, prec.fn))
 
         if not os.path.isdir(extracted_package_dir):
@@ -139,11 +155,116 @@ def fetch_precs(download_dir, precs):
             extracted_package_dir=extracted_package_dir,
         )
         pc.insert(package_cache_record)
+    urls = {r.url for r in precs}
+    return tuple(r for r in pc.iter_records() if r.url in urls)
 
-    return tuple(pc.iter_records())
+
+def write_conda_meta(host_conda_opt, records, user_conda):
+    cmd = os.path.split(user_conda)[-1]
+    if len(sys.argv) > 1:
+        cmd = f"{cmd} {' '.join(sys.argv[1:])}"
+
+    builder = [
+        f"==> {time.strftime('%Y-%m-%d %H:%M:%S')} <==",
+        f"# cmd: {cmd}",
+    ]
+    dists = tuple(Dist(r.url) for r in records)
+
+    builder.extend(f"+{dist.full_name}" for dist in dists)
+    builder.append("\n")
+
+    host_conda_meta = os.path.join(host_conda_opt, "conda-meta")
+    host_history = os.path.join(host_conda_meta, "history")
+    os.makedirs(host_conda_meta, exist_ok=True)
+    with open(host_history, 'w') as f:
+        f.write("\n".join(builder))
 
 
-def build_docker_environment(base_image, output_image, packages, output_filename):
+def write_repodata_records(download_dir, records, host_pkgs_dir, channels_remap):
+    for record in records:
+        fname = record.fn
+        if fname.endswith(".conda"):
+            distname = fname[:-6]
+        elif filename_dist(dist).endswith(".tar.bz2"):
+            distname = fname[:-8]
+        record_file = join(distname, 'info', 'repodata_record.json')
+        record_file_src = os.path.join(download_dir, record_file)
+
+        with open(record_file_src, 'r') as rf:
+            rr_json = json.load(rf)
+
+        rr_json['url'] = get_final_url(channels_remap, rr_json['url'])
+        rr_json['channel'] = get_final_url(channels_remap, rr_json['channel'])
+
+        os.makedirs(os.path.join(host_pkgs_dir, distname, 'info'), exist_ok=True)
+        record_file_dest = os.path.join(host_pkgs_dir, record_file)
+        with open(record_file_dest, 'w') as rf:
+            json.dump(rr_json, rf, indent=2, sort_keys=True)
+
+
+def chroot_install(new_root, records, orig_prefix, user_conda, channels_remap):
+    """Installs conda packages into a new root environment"""
+    # Some terminology:
+    #   orig - the conda directory / environment we are copying from
+    #          This is the normal user's conda prefix, path, etc
+    #   host - this is path on the user's machine OUTSIDE of the chroot
+    #          This is normally a temp directory, and prefixed by new_root
+    #   targ - This is the path INSIDE of the chroot, ie host minus the new_root
+    # first, link conda standalone into chroot dir
+    host_conda_opt = os.path.join(new_root, "opt", "conda")
+    host_pkgs_dir = os.path.join(host_conda_opt, "pkgs")
+    orig_standalone = os.path.join(orig_prefix, "standalone_conda", "conda.exe")
+    host_standalone = os.path.join(host_conda_opt, "_conda.exe")
+    os.makedirs(host_pkgs_dir, exist_ok=True)
+    os.link(orig_standalone, host_standalone)
+
+    # now link in pkgs
+    targ_conda_opt = os.path.join("/opt", "conda")
+    targ_pkgs_dir = os.path.join(targ_conda_opt, "pkgs")
+    host_record_fns = []
+    targ_record_fns = []
+    for record in records:
+        host_record_fn = os.path.join(host_pkgs_dir, record.fn)
+        os.link(record.package_tarball_full_path, host_record_fn)
+        host_record_fns.append(host_record_fn)
+        targ_record_fns.append(os.path.join(targ_pkgs_dir, record.fn))
+
+    # write an environment file to install from
+    s = "@EXPLICIT\nfile:/" + "\nfile:/".join(targ_record_fns) + "\n"
+    host_env_txt = os.path.join(host_pkgs_dir, "env.txt")
+    with open(host_env_txt, 'w') as f:
+        f.write(s)
+
+    # set up host as base env
+    write_conda_meta(host_conda_opt, records, user_conda)
+    write_repodata_records(download_dir, records, host_pkgs_dir, channels_remap)
+
+    # now install packages in chroot
+    subprocess.check_output(
+        [orig_standalone, "constructor", "--prefix", host_conda_opt, "--extract-conda-pkgs"]
+    )
+    #import pdb; pdb.set_trace()
+    try:
+        subprocess.check_output([
+            "fakechroot",
+            "chroot", new_root, "/opt/conda/_conda.exe", "install", "--offline",
+            "--file", "/opt/conda/pkgs/env.txt", "-yp", "/opt/conda",
+        ]
+        )
+    except:
+        print("new_root", new_root)
+        import pdb; pdb.set_trace()
+
+    # clean up hard links
+    os.remove(host_standalone)
+    for host_record_fn in host_record_fns:
+        os.remove(host_record_fn)
+    os.remove(host_env_txt)
+
+
+def build_docker_environment(base_image, output_image, records, output_filename,
+        default_prefix, user_conda, channels_remap
+    ):
     def parse_image_name(name):
         parts = name.split(':')
         if len(parts) == 1:
@@ -165,7 +286,7 @@ def build_docker_environment(base_image, output_image, packages, output_filename
 
         logger.info('building conda environment')
         with timer(logger, 'building conda environment'):
-            create(str(tmpdir), packages)
+            chroot_install(str(tmpdir), records, default_prefix, user_conda, channels_remap)
 
         logger.info(f'adding conda environment layer')
         with timer(logger, 'adding conda environment layer'):
@@ -176,5 +297,5 @@ def build_docker_environment(base_image, output_image, packages, output_filename
             image.write_file(output_filename)
 
 
-#def create(prefix, packages):
-#    subprocess.check_output(['conda', 'create', '-y', '-p', prefix] + list(packages))
+def create(prefix, packages):
+    subprocess.check_output(['conda', 'create', '-y', '-p', prefix] + list(packages))
