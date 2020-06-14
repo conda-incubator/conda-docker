@@ -40,10 +40,9 @@ def init_subcommand_build(subparser):
         "-i",
         "--image",
         type=str,
-        default="conda_docker:latest",
+        default="conda-docker:latest",
         help="image:tag for output of docker envs build",
     )
-    # parser.add_argument('-p', '--package', action='append', help='packages to install in image')
     parser.add_argument(
         "-p", "--prefix", default=None, help="prefix path to build from", dest="prefix"
     )
@@ -56,6 +55,18 @@ def init_subcommand_build(subparser):
     parser.add_argument(
         "-o", "--output", type=str, help="filename for docker image", required=True
     )
+    parser.add_argument(
+        "-s",
+        "--solver",
+        default=None,
+        help="Which conda implementation to use as a solver. This will default to "
+        "mamba (if available), and the user's conda otherwise.",
+    )
+    parser.add_argument(
+        "package_specs",
+        nargs="*",
+        help="packages specs to install in image if environment or prefix not given",
+    )
     parser.set_defaults(func=handle_conda_build)
 
 
@@ -65,7 +76,14 @@ def handle_conda_build(args):
     download_dir = info["pkgs_dirs"][0]
     default_prefix = info["default_prefix"]
     channels_remap = info.get("channels_remap", [])
-    precs = find_precs(user_conda, download_dir, name=args.name, prefix=args.prefix)
+    precs = find_precs(
+        user_conda,
+        download_dir,
+        name=args.name,
+        prefix=args.prefix,
+        package_specs=args.package_specs,
+        solver=args.solver,
+    )
     records = fetch_precs(download_dir, precs)
     # sort records in dependency order, as given by precs
     rd = {r.name: r for r in records}

@@ -26,7 +26,7 @@ from conda_docker.registry.client import pull_image
 from conda_docker.utils import timer, md5_files
 
 
-logger = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
 def conda_file_filter(trim_static_libs=True, trim_js_maps=True):
@@ -110,11 +110,34 @@ def precs_from_environment_prefix(environment, download_dir, user_conda):
     return _precs_from_environment(environment, "--prefix", download_dir, user_conda)
 
 
-def find_precs(user_conda, download_dir, name=None, prefix=None):
+def precs_from_package_specs(package_specs, solver, download_dir, user_conda):
+    """Get the package records from a list of package names/specs, as you
+    might type them in on the command line. This has to perform a solve.
+    """
+    solver_conda = find_solver_conda(solver, user_conda)
+    LOGGER.info("solving conda environment")
+    with timer(
+        LOGGER, "solving conda environment"
+    ), tempfile.TemporaryDirectory() as tmpdir:
+        # need temp env prefix, just in case.
+        json_listing = subprocess.check_output(
+            [solver_conda, "create", "--dry-run", "--prefix", str(tmpdir), "--json"]
+            + package_specs
+        )
+    listing = json.loads(json_listing)
+
+
+def find_precs(
+    user_conda, download_dir, name=None, prefix=None, package_specs=None, solver=None
+):
     if name is not None:
         precs = precs_from_environment_name(name, download_dir, user_conda)
     elif prefix is not None:
         precs = precs_from_environment_prefix(prefix, download_dir, user_conda)
+    elif package_specs is not None:
+        precs = precs_from_package_specs(
+            package_specs, solver, download_dir, user_conda
+        )
     else:
         raise RuntimeError("could not determine package list")
     return precs
@@ -127,8 +150,19 @@ def conda_info(user_conda):
 
 
 def find_user_conda(conda_exe="conda"):
+    """Find the user's conda."""
     user_conda = os.environ.get("CONDA_EXE", "") or conda_exe
     return user_conda
+
+
+def find_solver_conda(solver, user_conda):
+    """Finds the right conda implementation to perform environment
+    solves with.
+    """
+    if solver is not None:
+        return solver
+    mamba = shutil.which("mamba")
+    return user_conda if mamba is None else mamba
 
 
 def fetch_precs(download_dir, precs):
@@ -146,9 +180,9 @@ def fetch_precs(download_dir, precs):
             os.path.isfile(package_tarball_full_path)
             and md5_files([package_tarball_full_path]) == prec.md5
         ):
-            logger.info(f"already have: {prec.fn}")
+            LOGGER.info(f"already have: {prec.fn}")
         else:
-            logger.info(f"fetching: {prec.fn}")
+            LOGGER.info(f"fetching: {prec.fn}")
             download(prec.url, os.path.join(download_dir, prec.fn))
 
         if not os.path.isdir(extracted_package_dir):
@@ -298,7 +332,7 @@ def chroot_install(
         shutil.copy2("/bin/" + tool, host_tool)
 
     # extract packages
-    subprocess.check_output(
+    subprocess.check_call(
         [
             orig_standalone,
             "constructor",
@@ -314,6 +348,8 @@ def chroot_install(
     env["CONDA_PKGS_DIRS"] = "/opt/conda/pkgs"
     env["CONDA_ROOT"] = "/opt/conda"
     env["HOME"] = "/root"
+    # FIXME: this should reall be check_output(), but chroot or fakechroot is
+    # giving some weird segfault after the install command completes ¯\_(ツ)_/¯
     subprocess.call(
         [
             "fakechroot",
@@ -374,14 +410,14 @@ def build_docker_environment(
         if base_image == "scratch":
             image = Image(name=output_image_name, tag=output_image_tag)
         else:
-            logger.info(f"pulling base image {base_image_name}:{base_image_tag}")
-            with timer(logger, "pulling base image"):
+            LOGGER.info(f"pulling base image {base_image_name}:{base_image_tag}")
+            with timer(LOGGER, "pulling base image"):
                 image = pull_image(base_image_name, base_image_tag)
                 image.name = output_image_name
                 image.tag = output_image_tag
 
-        logger.info("building conda environment")
-        with timer(logger, "building conda environment"):
+        LOGGER.info("building conda environment")
+        with timer(LOGGER, "building conda environment"):
             chroot_install(
                 str(tmpdir),
                 records,
@@ -391,10 +427,10 @@ def build_docker_environment(
                 channels_remap,
             )
 
-        logger.info(f"adding conda environment layer")
-        with timer(logger, "adding conda environment layer"):
+        LOGGER.info(f"adding conda environment layer")
+        with timer(LOGGER, "adding conda environment layer"):
             image.add_layer_path(str(tmpdir), arcpath="/", filter=conda_file_filter())
 
-        logger.info(f"writing docker file to filesystem")
-        with timer(logger, "writing docker file"):
+        LOGGER.info(f"writing docker file to filesystem")
+        with timer(LOGGER, "writing docker file"):
             image.write_file(output_filename)
