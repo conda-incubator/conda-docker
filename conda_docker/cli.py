@@ -32,7 +32,8 @@ def init_subcommand_build(subparser):
         "-b",
         "--base",
         type=str,
-        default="continuumio/miniconda3:latest",
+        # mimimal image with glibc
+        default="frolvlad/alpine-glibc:latest",
         help="base image:tag to use for docker build",
     )
     parser.add_argument(
