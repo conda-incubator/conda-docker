@@ -7,7 +7,7 @@ from setuptools import setup
 
 def main():
     """The main entry point."""
-    with open(os.path.join(os.path.dirname(__file__), 'README.org'), 'r') as f:
+    with open(os.path.join(os.path.dirname(__file__), 'README.md'), 'r') as f:
         readme = f.read()
     skw = dict(
         name='conda-docker',
