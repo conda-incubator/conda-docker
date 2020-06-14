@@ -159,6 +159,29 @@ def fetch_precs(download_dir, precs):
     return tuple(r for r in pc.iter_records() if r.url in urls)
 
 
+def write_urls(records, host_pkgs_dir, channels_remap):
+    lines = []
+    for record in records:
+        url = get_final_url(channels_remap, record.url)
+        lines.append(f"{url}#{record.md5}")
+    lines.append("\n")
+    s = "\n".join(lines)
+
+    fname = os.path.join(host_pkgs_dir, "urls")
+    with open(fname, 'w') as f:
+        f.write(s)
+
+
+def write_urls_txt(records, host_pkgs_dir, channels_remap):
+    lines = [get_final_url(channels_remap, record.url) for record in records]
+    lines.append("\n")
+    s = "\n".join(lines)
+
+    fname = os.path.join(host_pkgs_dir, "urls.txt")
+    with open(fname, 'w') as f:
+        f.write(s)
+
+
 def write_conda_meta(host_conda_opt, records, user_conda):
     cmd = os.path.split(user_conda)[-1]
     if len(sys.argv) > 1:
@@ -236,6 +259,8 @@ def chroot_install(new_root, records, orig_prefix, download_dir, user_conda, cha
         f.write(s)
 
     # set up host as base env
+    write_urls(records, host_pkgs_dir, channels_remap)
+    write_urls_txt(records, host_pkgs_dir, channels_remap)
     write_conda_meta(host_conda_opt, records, user_conda)
     write_repodata_records(download_dir, records, host_pkgs_dir, channels_remap)
 
