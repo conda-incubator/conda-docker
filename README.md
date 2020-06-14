@@ -18,16 +18,6 @@ Features:
 -   no dependencies allowing for library packaged as
     [zipapp](https://docs.python.org/3/library/zipapp.html)
 
-References
-----------
-
--   [Docker Registry API
-    Specification](https://docs.docker.com/registry/spec/api/)
--   Docker Image Specification
-    -   [Summary](https://github.com/moby/moby/blob/master/image/spec/v1.2.md)
-    -   [Registry V2
-        Specification](https://docs.docker.com/registry/spec/manifest-v2-2/)
-
 Quickstart
 ----------
 Build conda docker image from command line:
@@ -165,3 +155,13 @@ Looking at the layer filesystem.
 tar -xf /tmp/ubuntu.tar $filename
 tar -tvf $filename | head
 ```
+
+References
+----------
+-   [Docker Registry API
+    Specification](https://docs.docker.com/registry/spec/api/)
+-   Docker Image Specification
+    -   [Summary](https://github.com/moby/moby/blob/master/image/spec/v1.2.md)
+    -   [Registry V2
+        Specification](https://docs.docker.com/registry/spec/manifest-v2-2/)
+
