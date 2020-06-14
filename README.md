@@ -28,12 +28,25 @@ References
     -   [Registry V2
         Specification](https://docs.docker.com/registry/spec/manifest-v2-2/)
 
+Quickstart
+----------
+Build conda docker image from command line:
+
+```shell
+conda docker build -b frolvlad/alpine-glibc:latest \
+                   -i example-image:123456 \
+                   -o demo.tar \
+                   numpy numba flask
+```
+
+
+
 Examples using Library
 ----------------------
 
 Downloading docker images without docker!
 
-``` python
+```python
 from docker_envs.registry.client import pull_image
 
 image = pull_image('frolvlad/alpine-glibc', 'latest')
@@ -41,7 +54,7 @@ image = pull_image('frolvlad/alpine-glibc', 'latest')
 
 Modify docker image from filesystem
 
-``` {.python results="output"}
+```python
 from docker_envs.docker.base import Image
 from docker_envs.registry.client import pull_image
 from docker_envs.conda import conda_file_filter
@@ -59,11 +72,11 @@ image.write_file('example-filter.tar')
 
 Build conda docker image from library
 
-``` {.python}
+```python
 from docker_envs.conda import build_docker_environment
 
 build_docker_environment(
-    base_image='continuumio/miniconda3:latest',
+    base_image='frolvlad/alpine-glibc:latest',
     output_image='example-image:123456',
     packages=[
         'numpy',
@@ -71,16 +84,6 @@ build_docker_environment(
         'flask',
     ],
     output_filename='demo.tar')
-```
-
-Build conda docker image from command line
-
-``` {.shell}
-# docker_envs.pyz # if you have it packaged as zipapp
-python -m docker_envs build -b continuumio/miniconda3:latest \
-                            -i example-image:123456 \
-                            -p numpy -p numba -p flask \
-                            -o demo.tar
 ```
 
 How does this work?
@@ -92,7 +95,7 @@ are several versions of the spec. For `v1.0` the specification is
 here](https://github.com/moby/moby/blob/master/image/spec/v1.md).
 Instead of writing down the spec lets look into a single docker image.
 
-``` {.shell results="none"}
+```shell
 docker pull ubuntu:latest
 docker save ubuntu:latest -o /tmp/ubuntu.tar
 ```
@@ -101,7 +104,7 @@ List the directory structure of the docker image. Notice how it is a
 collection of `layer.tar` which is a tar archive of filesystems. And
 several json files. `VERSION` file is always `1.0` currently.
 
-``` {.shell results="output"}
+```shell
 tar -tvf /tmp/ubuntu.tar
 ```
 
@@ -109,7 +112,7 @@ Dockerhub happens to export docker images in a `v1` - `v1.2` compatible
 format. Lets only look at the files important for `v1`. Repositories
 tells the layer to use as the layer head of the current name/tag.
 
-``` {.shell dir="/tmp" var="filename=\"repositories\"" results="output"}
+```shell
 tar -xf /tmp/ubuntu.tar $filename
 cat $filename | python -m json.tool
 ```
@@ -117,19 +120,19 @@ cat $filename | python -m json.tool
 For each layer there are three files: `VERSION`, `layer.tar`, and
 `json`.
 
-``` {.shell dir="/tmp" var="filename=\"93935bf1450219e4351893e546b97b4584083b01d19daeba56cab906fc75fc1c/VERSION\"" results="output"}
+```shell
 tar -xf /tmp/ubuntu.tar $filename
 cat $filename
 ```
 
-``` {.shell dir="/tmp" var="filename=\"93935bf1450219e4351893e546b97b4584083b01d19daeba56cab906fc75fc1c/json\"" results="output"}
+```shell
 tar -xf /tmp/ubuntu.tar $filename
 cat $filename | python -m json.tool
 ```
 
 Looking at layer metadata.
 
-``` {.example}
+```json
 {
     "id": "93935bf1450219e4351893e546b97b4584083b01d19daeba56cab906fc75fc1c",
     "created": "1969-12-31T19:00:00-05:00",
@@ -158,7 +161,7 @@ Looking at layer metadata.
 
 Looking at the layer filesystem.
 
-``` {.shell dir="/tmp" var="filename=\"93935bf1450219e4351893e546b97b4584083b01d19daeba56cab906fc75fc1c/layer.tar\"" results="output"}
+```shell
 tar -xf /tmp/ubuntu.tar $filename
 tar -tvf $filename | head
 ```
