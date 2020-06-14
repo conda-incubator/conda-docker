@@ -11,10 +11,17 @@ import logging
 import tempfile
 import subprocess
 
-from conda.api import PackageCacheData
 from conda.exports import download
-from conda.core.package_cache_data import PackageCacheData
+try:
+    from conda import __version__ as CONDA_INTERFACE_VERSION
 
+    conda_interface_type = "conda"
+except ImportError:
+    raise RuntimeError(
+        "Conda must be installed for python interpreter\n"
+        f"with sys.prefix: {sys.prefix}"
+    )
+from conda.models.channel import all_channel_urls
 try:
     from conda.models.records import PackageCacheRecord
 except ImportError:
@@ -27,6 +34,7 @@ from conda_docker.utils import timer, md5_files
 
 
 LOGGER = logging.getLogger(__name__)
+CONDA_MAJOR_MINOR = tuple(int(x) for x in CONDA_INTERFACE_VERSION.split(".")[:2])
 
 
 def conda_file_filter(trim_static_libs=True, trim_js_maps=True):
@@ -55,6 +63,45 @@ def get_final_url(channels_remap, url):
                 )
             return new_url
     return url
+
+
+def get_repodata(url):
+    """Obtain the repodata from a channel URL"""
+    if CONDA_MAJOR_MINOR >= (4, 5):
+        from conda.core.subdir_data import fetch_repodata_remote_request
+
+        raw_repodata_str = fetch_repodata_remote_request(url, None, None)
+    elif CONDA_MAJOR_MINOR >= (4, 4):
+        from conda.core.repodata import fetch_repodata_remote_request
+
+        raw_repodata_str = fetch_repodata_remote_request(url, None, None)
+    elif CONDA_MAJOR_MINOR >= (4, 3):
+        from conda.core.repodata import fetch_repodata_remote_request
+
+        repodata_obj = fetch_repodata_remote_request(None, url, None, None)
+        raw_repodata_str = json.dumps(repodata_obj)
+    else:
+        raise NotImplementedError(
+            f"unsupported version of conda: {CONDA_INTERFACE_VERSION}"
+        )
+    full_repodata = json.loads(raw_repodata_str)
+    return full_repodata
+
+
+def load_repodatas(
+    download_dir, channels=(), conda_default_channels=(), channels_remap=()
+):
+    """Load all repodatas into a single dict"""
+    cache_dir = os.path.join(download_dir, "cache")
+    os.makedirs(cache_dir, exist_ok=True)
+
+    remaps = {url["src"].rstrip("/"): url["dest"].rstrip("/") for url in channels_remap}
+    urls = all_channel_urls(
+        url.rstrip("/")
+        for url in list(remaps) + list(channels) + list(conda_default_channels)
+    )
+    repodatas = {url: get_repodata(url) for url in urls}
+    return repodatas
 
 
 def _precs_from_environment(environment, list_flag, download_dir, user_conda):
@@ -110,10 +157,19 @@ def precs_from_environment_prefix(environment, download_dir, user_conda):
     return _precs_from_environment(environment, "--prefix", download_dir, user_conda)
 
 
-def precs_from_package_specs(package_specs, solver, download_dir, user_conda):
+def precs_from_package_specs(
+    package_specs,
+    solver,
+    download_dir,
+    user_conda,
+    channels=(),
+    conda_default_channels=(),
+    channels_remap=(),
+):
     """Get the package records from a list of package names/specs, as you
     might type them in on the command line. This has to perform a solve.
     """
+    # perform solve
     solver_conda = find_solver_conda(solver, user_conda)
     LOGGER.info("solving conda environment")
     with timer(
@@ -125,10 +181,53 @@ def precs_from_package_specs(package_specs, solver, download_dir, user_conda):
             + package_specs
         )
     listing = json.loads(json_listing)
+    listing = listing["actions"]["LINK"]
+
+    # get repodata so that we have the MD5 sums
+    LOGGER.info("loading repodata")
+    with timer(LOGGER, "loading repodata"):
+        used_channels = {f"{x['base_url']}/{x['platform']}" for x in listing}
+        repodatas = load_repodatas(
+            download_dir,
+            channels=used_channels,
+            channels_remap=channels_remap,
+        )
+
+    # now, create PackageCacheRecords
+    precs = []
+    for package in listing:
+        dist_name = package["dist_name"]
+        fn = dist_name + ".tar.bz2"
+        plat = package.pop("platform")
+        channel = f"{package['base_url']}/{plat}"
+        url = f"{channel}/{fn}"
+        pkg_repodata = repodatas[channel]['packages'][fn]
+        md5 = pkg_repodata["md5"]
+        package_tarball_full_path = os.path.join(download_dir, fn)
+        extracted_package_dir = os.path.join(download_dir, dist_name)
+        precs.append(
+            PackageCacheRecord(
+                url=url,
+                md5=md5,
+                fn=fn,
+                package_tarball_full_path=package_tarball_full_path,
+                extracted_package_dir=extracted_package_dir,
+                **package,
+            )
+        )
+    return precs
 
 
 def find_precs(
-    user_conda, download_dir, name=None, prefix=None, package_specs=None, solver=None
+    user_conda,
+    download_dir,
+    name=None,
+    prefix=None,
+    package_specs=None,
+    solver=None,
+    channels=(),
+    conda_default_channels=(),
+    channels_remap=(),
 ):
     if name is not None:
         precs = precs_from_environment_name(name, download_dir, user_conda)
@@ -136,7 +235,13 @@ def find_precs(
         precs = precs_from_environment_prefix(prefix, download_dir, user_conda)
     elif package_specs is not None:
         precs = precs_from_package_specs(
-            package_specs, solver, download_dir, user_conda
+            package_specs,
+            solver,
+            download_dir,
+            user_conda,
+            channels=channels,
+            conda_default_channels=conda_default_channels,
+            channels_remap=channels_remap,
         )
     else:
         raise RuntimeError("could not determine package list")
@@ -167,8 +272,8 @@ def find_solver_conda(solver, user_conda):
 
 def fetch_precs(download_dir, precs):
     os.makedirs(download_dir, exist_ok=True)
-    pc = PackageCacheData(download_dir)
 
+    records = []
     for prec in precs:
         package_tarball_full_path = os.path.join(download_dir, prec.fn)
         if package_tarball_full_path.endswith(".tar.bz2"):
@@ -202,9 +307,8 @@ def fetch_precs(download_dir, precs):
             package_tarball_full_path=package_tarball_full_path,
             extracted_package_dir=extracted_package_dir,
         )
-        pc.insert(package_cache_record)
-    urls = {r.url for r in precs}
-    return tuple(r for r in pc.iter_records() if r.url in urls)
+        records.append(package_cache_record)
+    return records
 
 
 def write_urls(records, host_pkgs_dir, channels_remap):

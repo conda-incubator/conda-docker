@@ -73,21 +73,24 @@ def init_subcommand_build(subparser):
 def handle_conda_build(args):
     user_conda = find_user_conda() if args.conda_exe is None else args.conda_exe
     info = conda_info(user_conda)
+    platform = info["platform"]
     download_dir = info["pkgs_dirs"][0]
     default_prefix = info["default_prefix"]
+    channels = info.get("channels", [])
+    conda_default_channels = info.get("conda_default_channels", [])
     channels_remap = info.get("channels_remap", [])
     precs = find_precs(
         user_conda,
         download_dir,
+        channels=channels,
+        conda_default_channels=conda_default_channels,
+        channels_remap=channels_remap,
         name=args.name,
         prefix=args.prefix,
         package_specs=args.package_specs,
         solver=args.solver,
     )
     records = fetch_precs(download_dir, precs)
-    # sort records in dependency order, as given by precs
-    rd = {r.name: r for r in records}
-    records = tuple([rd[r.name] for r in precs])
     # now build image
     build_docker_environment(
         args.base,
