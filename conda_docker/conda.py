@@ -279,7 +279,7 @@ def chroot_install(new_root, records, orig_prefix, download_dir, user_conda, cha
     host_conda_opt = os.path.join(new_root, "opt", "conda")
     host_pkgs_dir = os.path.join(host_conda_opt, "pkgs")
     orig_standalone = os.path.join(orig_prefix, "standalone_conda", "conda.exe")
-    host_standalone = os.path.join(host_conda_opt, "_conda.exe")
+    host_standalone = os.path.join(new_root, "_conda.exe")
     os.makedirs(host_pkgs_dir, exist_ok=True)
     os.link(orig_standalone, host_standalone)
 
@@ -314,6 +314,10 @@ def chroot_install(new_root, records, orig_prefix, download_dir, user_conda, cha
     for tool, host_tool in zip(bin_tools, host_bin_tools):
         shutil.copy2("/bin/" + tool, host_tool)
 
+    host_home_dotconda = os.path.join(new_root, "root", ".conda")
+    os.makedirs(host_home_dotconda, exist_ok=True)
+    with open(os.path.join(host_home_dotconda, "environments.txt"), "w") as f:
+        f.write("/opt/conda\n")
     # now install packages in chroot
     subprocess.check_output(
         [orig_standalone, "constructor", "--prefix", host_conda_opt, "--extract-conda-pkgs"]
@@ -324,21 +328,25 @@ def chroot_install(new_root, records, orig_prefix, download_dir, user_conda, cha
     env["CONDA_EXTRA_SAFETY_CHECKS"] = "no"
     env["CONDA_PKGS_DIRS"] = "/opt/conda/pkgs"
     env["CONDA_ROOT"] = "/opt/conda"
+    env["HOME"] = "/root"
     try:
         subprocess.check_output([
             "fakechroot",
-            "chroot", new_root, "/bin/bash", "-c",
-            #"/opt/conda/_conda.exe", "install", "--offline",
-            #"--file", "/opt/conda/pkgs/env.txt", "-y", "--prefix", "/opt/conda",
-            "export CONDA_ROOT=/opt/conda; "
-            "export CONDA_EXE=/opt/conda/_conda.exe; "
-            "export CONDA_PREFIX=/opt/conda; "
-            "cd /opt/conda; "
-            "/opt/conda/_conda.exe install --offline "
-            "--file /opt/conda/pkgs/env.txt -y --prefix /opt/conda || "
-            "/bin/mv /libpython* /opt/conda || "
-            "/opt/conda/_conda.exe install --offline "
-            "--file /opt/conda/pkgs/env.txt -y --prefix /opt/conda",
+            "chroot", new_root,
+            #"/bin/bash", "-c",
+            "/_conda.exe", "install", "--offline",
+            "--file", "/opt/conda/pkgs/env.txt", "-y", "--prefix", "/opt/conda",
+            #"export CONDA_ROOT=/opt/conda; "
+            #"export CONDA_EXE=/_conda.exe; "
+            #"export CONDA_PREFIX=/opt/conda; "
+            #"unset PYTHON_SYSCONFIGDATA_NAME _CONDA_PYTHON_SYSCONFIGDATA_NAME; "
+            #"cd /opt/conda; "
+            #"/opt/conda/_conda.exe constructor --extract-tar --prefix /opt/conda; "
+            #"/opt/conda/_conda.exe install --offline "
+            #"--file /opt/conda/pkgs/env.txt -y --prefix /opt/conda || "
+            #"/bin/mv /libpython* /opt/conda || "
+            #"/_conda.exe install --offline "
+            #"--file /opt/conda/pkgs/env.txt -y --prefix /opt/conda; "
         ], env=env, cwd=host_conda_opt,
         )
     except:
