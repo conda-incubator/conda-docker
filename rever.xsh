@@ -12,8 +12,8 @@ $ACTIVITIES = [
 ]
 $AUTHORS_FILENAME = 'AUTHORS.md'
 $VERSION_BUMP_PATTERNS = [
-    ('conda_docker/__init__.py', '__version__\s*=.*', '__version__ = "$VERSION"'),
-    ('setup.py', 'version\s*=.*,', 'version="$VERSION",'),
+    ('conda_docker/__init__.py', r'__version__\s*=.*', '__version__ = "$VERSION"'),
+    ('setup.py', r'version\s*=.*,', 'version="$VERSION",'),
 ]
 $CHANGELOG_FILENAME = 'CHANGELOG.md'
 $CHANGELOG_TEMPLATE = 'TEMPLATE.md'
