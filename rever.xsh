@@ -1,5 +1,6 @@
 $PROJECT = $GITHUB_REPO = 'conda-docker'
 $GITHUB_ORG = 'regro'
+$PYPI_SIGN = False
 $ACTIVITIES = [
     'authors',
     'version_bump',
