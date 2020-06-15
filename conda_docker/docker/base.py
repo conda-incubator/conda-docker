@@ -13,7 +13,7 @@ from conda_docker.docker.tar import (
 
 class Layer:
     def __init__(
-        self, id, parent, architecture, os, created, author, checksum, size, content
+        self, id, parent, architecture, os, created, author, checksum, size, content, config=None
     ):
         self.created = created
         self.author = author
@@ -24,6 +24,30 @@ class Layer:
         self.size = size
         self.checksum = checksum
         self.content = content
+        self.config = config or {
+            "Hostname": "",
+            "Domainname": "",
+            "User": "root",
+            "AttachStdin": False,
+            "AttachStdout": False,
+            "AttachStderr": False,
+            "Tty": False,
+            "OpenStdin": False,
+            "StdinOnce": False,
+            "Env": [
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            ],
+            "Cmd": ["/bin/bash"],
+            "ArgsEscaped": True,
+            "Image": "todo-implement",
+            "Volumes": None,
+            "WorkingDir": "",
+            "Entrypoint": ["/bin/sh", "-c"],
+            "OnBuild": None,
+            "Labels": {
+                "CONDA_DOCKER": "0.0.1"
+            }
+        }
 
     def list_files(self):
         tar = tarfile.TarFile(fileobj=io.BytesIO(self.content))
