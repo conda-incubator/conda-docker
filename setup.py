@@ -15,7 +15,7 @@ def main():
         long_description=readme,
         long_description_content_type='text/markdown',
         license='BSD-3-Clause',
-        version='0.0.0',
+        version="0.0.1",
         author='conda-forge',
         maintainer='conda-forge',
         author_email='conda-forge@googlegroups.com',
