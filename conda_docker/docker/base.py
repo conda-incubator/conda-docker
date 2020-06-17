@@ -3,6 +3,7 @@ import tarfile
 import secrets
 from datetime import datetime, timezone
 
+from conda_docker import __version__ as VERSION
 from conda_docker.docker.tar import (
     parse_v1,
     write_v1,
@@ -45,7 +46,7 @@ class Layer:
             "Entrypoint": ["/bin/sh", "-c"],
             "OnBuild": None,
             "Labels": {
-                "CONDA_DOCKER": "0.0.1"
+                "CONDA_DOCKER": VERSION,
             }
         }
 
