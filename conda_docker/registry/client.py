@@ -54,6 +54,7 @@ def pull_image(image, tag):
                 author=d.get("author"),
                 checksum=d.get("checksum"),
                 size=d.get("size"),
+                config=d.get("config"),
                 content=digest,
             )
         )

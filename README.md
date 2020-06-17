@@ -37,7 +37,7 @@ Examples using Library
 Downloading docker images without docker!
 
 ```python
-from docker_envs.registry.client import pull_image
+from conda_docker.registry.client import pull_image
 
 image = pull_image('frolvlad/alpine-glibc', 'latest')
 ```
@@ -45,25 +45,25 @@ image = pull_image('frolvlad/alpine-glibc', 'latest')
 Modify docker image from filesystem
 
 ```python
-from docker_envs.docker.base import Image
-from docker_envs.registry.client import pull_image
-from docker_envs.conda import conda_file_filter
+from conda_docker.docker.base import Image
+from conda_docker.registry.client import pull_image
 
 image = pull_image('continuumio/miniconda3', 'latest')
 image.remove_layer()
 image.name = 'this-is-a-test'
-image.add_layer_path('./', filter=conda_file_filter())
+image.add_layer_path('./')
 image.add_layer_contents({
     'this/is/a/test1': b'this is test 1',
     'this/is/a/test2': b'this is test 2'
 })
+image.layers[0].config['Env'].append('FOO=BAR')
 image.write_file('example-filter.tar')
 ```
 
 Build conda docker image from library
 
 ```python
-from docker_envs.conda import build_docker_environment
+from conda_docker.conda import build_docker_environment
 
 build_docker_environment(
     base_image='frolvlad/alpine-glibc:latest',
