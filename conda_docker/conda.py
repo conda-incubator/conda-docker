@@ -180,7 +180,6 @@ def precs_from_package_specs(
             [solver_conda, "create", "--dry-run", "--prefix", str(tmpdir), "--json"]
             + package_specs
         )
-    assert False, solver_conda
     listing = json.loads(json_listing)
     listing = listing["actions"]["LINK"]
 
