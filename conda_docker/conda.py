@@ -178,11 +178,11 @@ def precs_from_package_specs(
         assert False, ([solver_conda, "create", "--dry-run", "--prefix", str(tmpdir), "--json"]
             + package_specs,
         subprocess.check_output(
-            [solver_conda, "create", "--dry-run", "--prefix", str(tmpdir), "--json"]
+            [solver_conda, "create", "--dry-run", "--prefix", str(tmpdir)]
             + package_specs, stderr=subprocess.STDOUT))
         # need temp env prefix, just in case.
         json_listing = subprocess.check_output(
-            [solver_conda, "create", "--dry-run", "--prefix", str(tmpdir), "--json"]
+            [solver_conda, "create", "--dry-run", "--prefix", str(tmpdir)]
             + package_specs
         )
     listing = json.loads(json_listing)
