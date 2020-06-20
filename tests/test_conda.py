@@ -29,6 +29,7 @@ class TestCondaMake:
             CondaMakeData.download_dir,
             channels=channels,
             package_specs=["make"],
+            solver=CondaMakeData.user_conda,
         )
         names = {pr.name for pr in precs}
         assert "make" in names
