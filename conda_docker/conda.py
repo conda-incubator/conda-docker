@@ -175,12 +175,12 @@ def precs_from_package_specs(
     with timer(
         LOGGER, "solving conda environment"
     ), tempfile.TemporaryDirectory() as tmpdir:
-        assert False, (print([solver_conda, "create", "--dry-run", "--prefix", str(tmpdir), "--json"]
-            + package_specs),
-        subprocess.call(
+        assert False, ([solver_conda, "create", "--dry-run", "--prefix", str(tmpdir), "--json"]
+            + package_specs,
+        subprocess.check_output(
             [solver_conda, "create", "--dry-run", "--prefix", str(tmpdir), "--json"]
             + package_specs
-        ))
+        ), stderr=subprocess.STDOUT)
         # need temp env prefix, just in case.
         json_listing = subprocess.check_output(
             [solver_conda, "create", "--dry-run", "--prefix", str(tmpdir), "--json"]
