@@ -1,3 +1,5 @@
+import os
+
 import pytest
 
 from conda_docker.conda import (
@@ -9,13 +11,18 @@ from conda_docker.conda import (
 )
 
 
+skip_if_conda_build = pytest.mark.skipif(
+    os.environ.get("CONDA_BUILD", "") == "1", reason="In conda-build"
+)
+
+
 class CondaMakeData:
     """Needed to store state between tests"""
 
     user_conda = default_prefix = None
     download_dir = precs = records = None
 
-
+@skip_if_conda_build
 @pytest.mark.incremental
 class TestCondaMake:
     def test_find_precs(self, class_tmpdir):
