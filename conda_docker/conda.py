@@ -267,7 +267,7 @@ def find_solver_conda(solver, user_conda):
     if solver is not None:
         return solver
     mamba = shutil.which("mamba")
-    return user_conda if mamba is None else mamba
+    return user_conda if mamba is None else os.path.expandvars(mamba)
 
 
 def fetch_precs(download_dir, precs):
