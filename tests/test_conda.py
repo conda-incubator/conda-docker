@@ -11,14 +11,13 @@ from conda_docker.conda import (
 
 class CondaMakeData:
     """Needed to store state between tests"""
+
     user_conda = default_prefix = None
     download_dir = precs = records = None
 
 
-
 @pytest.mark.incremental
 class TestCondaMake:
-
     def test_find_precs(self, class_tmpdir):
         CondaMakeData.user_conda = find_user_conda()
         info = conda_info(CondaMakeData.user_conda)

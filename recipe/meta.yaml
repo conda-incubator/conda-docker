@@ -1,5 +1,6 @@
 {% set name = "conda-docker" %}
 {% set version = environ.get('GIT_DESCRIBE_TAG', 'untagged')|string|replace('-','_') %}
+{% set build_number = environ.get('GIT_DESCRIBE_NUMBER', '0') %}
 
 package:
   name: {{ name|lower }}
@@ -9,7 +10,7 @@ source:
   git_url: {{ environ.get('FEEDSTOCK_ROOT', '..') }}
 
 build:
-  number: {{ environ.get('GIT_DESCRIBE_NUMBER', '0') }}
+  number: {{ build_number }}
   string: {{ [build_number, ('h' + PKG_HASH), environ.get('GIT_DESCRIBE_HASH', '')]|join('_') }}
   script: "{{ PYTHON }} -m pip install . -vv"
   skip: true  # [not linux]
