@@ -41,12 +41,12 @@ class TestCondaMake:
         assert "make" in names
         CondaMakeData.records = records
 
-    def test_build_docker_environment(self):
+    def test_build_docker_environment(self, class_tmpdir):
         build_docker_environment(
             "frolvlad/alpine-glibc:latest",
             "example:test",
             CondaMakeData.records,
-            "test.tar",
+            class_tmpdir / "test.tar",
             CondaMakeData.default_prefix,
             CondaMakeData.download_dir,
             CondaMakeData.user_conda,
