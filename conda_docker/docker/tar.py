@@ -1,6 +1,6 @@
-import tarfile
-import json
 import io
+import json
+import tarfile
 
 
 def _extract_file(tar, filename):
@@ -13,9 +13,13 @@ def _extract_json(tar, filename):
     return json.loads(f.decode("utf-8"))
 
 
-def _add_file(tar, filename, content):
+def _add_file(tar, filename, content, filter=None):
     tar_info = tarfile.TarInfo(name=filename)
     tar_info.size = len(content)
+    if filter is not None:
+        tar_info = filter(tar_info)
+        if tar_info is None:
+            return
     content = io.BytesIO(content)
     content.seek(0)
     tar.addfile(tar_info, content)
@@ -93,16 +97,32 @@ def write_v1_repositories(image):
     return json.dumps({image.name: {image.tag: image.layers[0].id}}).encode("utf-8")
 
 
-def write_tar_from_contents(contents):
+def write_tar_from_contents(contents, filter=None):
+    """Writes a tar file from a dict of archive names to bytes that represent the
+    contents of each file.
+    """
     digest = io.BytesIO()
     with tarfile.TarFile(mode="w", fileobj=digest) as tar:
         for filename, content in contents.items():
-            _add_file(tar, filename, content)
+            _add_file(tar, filename, content, filter=filter)
+    digest.seek(0)
+    return digest.getvalue()
+
+
+def write_tar_from_paths(paths, filter=None):
+    """Writes a tar file from a dict mapping host name paths to
+    archive names.
+    """
+    digest = io.BytesIO()
+    with tarfile.TarFile(mode="w", fileobj=digest) as tar:
+        for path, arcpath in paths.items()
+            tar.add(path, arcname=arcpath, recursive=False, filter=filter)
     digest.seek(0)
     return digest.getvalue()
 
 
 def write_tar_from_path(path, arcpath=None, recursive=True, filter=None):
+    """Writes a tar file from a single path."""
     digest = io.BytesIO()
     with tarfile.TarFile(mode="w", fileobj=digest) as tar:
         tar.add(path, arcname=arcpath, recursive=recursive, filter=filter)

@@ -490,6 +490,73 @@ def chroot_install(
         else:
             shutil.rmtree(entry)
 
+def add_single_conda_layer(image, hostpath, arcpath=None, filter=None):
+    LOGGER.info("adding single conda environment layer")
+    with timer(LOGGER, "adding single conda environment layer"):
+        image.add_layer_path(hostpath, arcpath=arcpath, filter=filter)
+
+
+def _paths_from_record(record, hostpath):
+    # read normal files, given by package metadata
+    info_path = os.path.join(record.extracted_package_dir, "info")
+    files_path = os.path.join(info_path, "files")
+    with open(files_path) as f:
+        files = f.read().splitlines()
+    host_conda_opt = os.path.join(hostpath, "opt", "conda")
+    paths = {os.path.join(host_conda_opt, f): "/opt/conda/" + f in files}
+    # read package metadata
+    for root, dirnames, filenames in os.walk(info_path):
+        arcroot = root[len(hostpath):]
+        paths.update({os.path.join(root, d): os.path.join(arcroot, d) for d in dirnames})
+        paths.update({os.path.join(root, f): os.path.join(arcroot, f) for f in filenames})
+    return paths
+
+
+def add_conda_package_layers(image, hostpath, arcpath=None, filter=None, records=None):
+    LOGGER.info("adding conda environment in package layers")
+    with timer(LOGGER, "adding conda environment in package layers"):
+        counter = 0
+        files_in_layers = set()
+        for record in records:
+            if counter > 100:
+                break
+            # read repodata for the package
+            repodata_record_path = os.path.join(
+                record.extracted_package_dir, "info", "repodata_record.json"
+            )
+            with open(repodata_record_path) as f:
+                repodata_record = json.load(f)
+            if repodata_record["subdir"] == "noarch":
+                # we don't remap noarch package files
+                continue
+            base_id = repodata_record.get("sha256", 32*"0"  + repodata_record.get("md5"))
+            # build layer, we need to use add_layer_paths() to deduplicate inodes,
+            # i.e. properly capture hardlinks
+            paths = _paths_from_record(record, hostpath)
+            files_in_layers.update(paths.keys())
+            image.add_layer_paths(paths, filter=filter, base_id=base_id)
+            counter += 1
+
+        # add remaining packages / files into a single layer
+        paths = {}
+        for root, dirnames, filenames in os.walk(hostpath):
+            arcroot = root[len(hostpath):]
+            for name in dirnames + filenames:
+                host_name = os.path.join(root, name)
+                if host_name in files_in_layers:
+                    continue
+                paths[host_name] = os.path.join(arcroot, name)
+        image.add_layer_paths(paths, filter=filter)
+
+
+def add_conda_layers(image, hostpath, arcpath=None, filter=None, records=None, layering_strategy="layered",):
+    if layering_strategy == "single":
+        add_single_conda_layer(image, hostpath, arcpath=arcpath, filter=filter)
+    elif layering_strategy == "layered":
+        add_conda_package_layers(image, hostpath, arcpath=arcpath, filter=filter, records=records)
+    else:
+        raise ValueError(f"layering strategy not recognized: {layering_strategy}")
+
 
 def build_docker_environment(
     base_image,
@@ -500,6 +567,7 @@ def build_docker_environment(
     download_dir,
     user_conda,
     channels_remap,
+    layering_strategy="layered",
 ):
     def parse_image_name(name):
         parts = name.split(":")
@@ -531,9 +599,7 @@ def build_docker_environment(
                 channels_remap,
             )
 
-        LOGGER.info(f"adding conda environment layer")
-        with timer(LOGGER, "adding conda environment layer"):
-            image.add_layer_path(str(tmpdir), arcpath="/", filter=conda_file_filter())
+        add_conda_layers(image, str(tmpdir), arcpath="/", filter=conda_file_filter(), records=records, layering_strategy=layering_strategy)
 
         LOGGER.info(f"writing docker file to filesystem")
         with timer(LOGGER, "writing docker file"):
