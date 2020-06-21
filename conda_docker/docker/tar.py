@@ -39,7 +39,7 @@ def _parse_v1_layer(tar, layer_id):
         author=d.get("author"),
         checksum=d.get("checksum"),
         size=d.get("size"),
-        config=d.get('config'),
+        config=d.get("config"),
         content=content,
     )
 
@@ -88,9 +88,9 @@ def write_v1_layer_metadata(layer):
     }
 
     metadata = {k: getattr(layer, k) for k in keys if getattr(layer, k) is not None}
-    metadata['config'] = layer.config
-    metadata['container_config'] = layer.config
-    return json.dumps(metadata).encode('utf-8')
+    metadata["config"] = layer.config
+    metadata["container_config"] = layer.config
+    return json.dumps(metadata).encode("utf-8")
 
 
 def write_v1_repositories(image):

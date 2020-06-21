@@ -15,7 +15,17 @@ from conda_docker.docker.tar import (
 
 class Layer:
     def __init__(
-        self, id, parent, architecture, os, created, author, checksum, size, content, config=None
+        self,
+        id,
+        parent,
+        architecture,
+        os,
+        created,
+        author,
+        checksum,
+        size,
+        content,
+        config=None,
     ):
         self.created = created
         self.author = author
@@ -46,9 +56,7 @@ class Layer:
             "WorkingDir": "",
             "Entrypoint": ["/bin/sh", "-c"],
             "OnBuild": None,
-            "Labels": {
-                "CONDA_DOCKER": VERSION,
-            }
+            "Labels": {"CONDA_DOCKER": VERSION,},
         }
 
     def list_files(self):
@@ -65,16 +73,16 @@ class Image:
     def remove_layer(self):
         self.layers.pop(0)
 
-    def add_layer_path(self, path, arcpath=None, recursive=True, filter=None, base_id=None):
+    def add_layer_path(
+        self, path, arcpath=None, recursive=True, filter=None, base_id=None
+    ):
         digest = write_tar_from_path(
             path, arcpath=arcpath, recursive=recursive, filter=filter
         )
         self._add_layer(digest, base_id=base_id)
 
     def add_layer_paths(self, paths, filter=None, base_id=None):
-        digest = write_tar_from_paths(
-            paths, filter=filter
-        )
+        digest = write_tar_from_paths(paths, filter=filter)
         self._add_layer(digest, base_id=base_id)
 
     def add_layer_contents(self, contents, filter=None, base_id=None):
