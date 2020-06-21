@@ -104,6 +104,16 @@ def load_repodatas(
     return repodatas
 
 
+def get_dist_name(fn):
+    """Returns the distname from the filename"""
+    fn = os.path.basename(fn)
+    if fn.endswith(".tar.bz2"):
+        dist_name = fn[:-8]
+    else:
+        dist_name, _ = os.path.splitext(fn)
+    return dist_name
+
+
 def _precs_from_environment(environment, list_flag, download_dir, user_conda):
     # get basic data about the environment's packages
     json_listing = subprocess.check_output(
@@ -123,10 +133,7 @@ def _precs_from_environment(environment, list_flag, download_dir, user_conda):
             continue
         url, _, md5 = line.rpartition("#")
         _, _, fn = url.rpartition("/")
-        if fn.endswith(".tar.bz2"):
-            dist_name = fn[:-8]
-        else:
-            dist_name, _ = splitext(fn)
+        dist_name = get_dist_name(fn)
         ordering.append((dist_name, url, md5, fn))
 
     # now, create PackageCacheRecords
@@ -498,14 +505,20 @@ def add_single_conda_layer(image, hostpath, arcpath=None, filter=None):
 
 def _paths_from_record(record, hostpath):
     # read normal files, given by package metadata
-    info_path = os.path.join(record.extracted_package_dir, "info")
+    dist_name = get_dist_name(record.fn)
+    host_conda_opt = os.path.join(hostpath, "opt", "conda")
+    dist_path = os.path.join(host_conda_opt, "pkgs", dist_name)
+    info_path = os.path.join(dist_path, "info")
     files_path = os.path.join(info_path, "files")
     with open(files_path) as f:
         files = f.read().splitlines()
-    host_conda_opt = os.path.join(hostpath, "opt", "conda")
-    paths = {os.path.join(host_conda_opt, f): "/opt/conda/" + f in files}
+    paths = {os.path.join(host_conda_opt, f): "/opt/conda/" + f for f in files}
+    paths.update({os.path.dirname(k): os.path.dirname(v) for k, v in paths.items()})
     # read package metadata
-    for root, dirnames, filenames in os.walk(info_path):
+    paths[dist_path] = dist_path[len(hostpath):]
+    meta_json = os.path.join(host_conda_opt, "conda-meta", dist_name + ".json")
+    paths[meta_json] = meta_json[len(hostpath):]
+    for root, dirnames, filenames in os.walk(dist_path):
         arcroot = root[len(hostpath):]
         paths.update({os.path.join(root, d): os.path.join(arcroot, d) for d in dirnames})
         paths.update({os.path.join(root, f): os.path.join(arcroot, f) for f in filenames})
@@ -529,7 +542,7 @@ def add_conda_package_layers(image, hostpath, arcpath=None, filter=None, records
             if repodata_record["subdir"] == "noarch":
                 # we don't remap noarch package files
                 continue
-            base_id = repodata_record.get("sha256", 32*"0"  + repodata_record.get("md5"))
+            base_id = repodata_record.get("sha256", repodata_record.get("md5") + 32*"0")
             # build layer, we need to use add_layer_paths() to deduplicate inodes,
             # i.e. properly capture hardlinks
             paths = _paths_from_record(record, hostpath)

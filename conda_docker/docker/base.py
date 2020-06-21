@@ -73,7 +73,7 @@ class Image:
 
     def add_layer_paths(self, paths, filter=None, base_id=None):
         digest = write_tar_from_paths(
-            path, arcpath=arcpath, recursive=recursive, filter=filter
+            paths, filter=filter
         )
         self._add_layer(digest, base_id=base_id)
 

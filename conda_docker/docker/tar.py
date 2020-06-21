@@ -115,7 +115,7 @@ def write_tar_from_paths(paths, filter=None):
     """
     digest = io.BytesIO()
     with tarfile.TarFile(mode="w", fileobj=digest) as tar:
-        for path, arcpath in paths.items()
+        for path, arcpath in paths.items():
             tar.add(path, arcname=arcpath, recursive=False, filter=filter)
     digest.seek(0)
     return digest.getvalue()
