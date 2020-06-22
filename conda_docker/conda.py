@@ -504,21 +504,17 @@ def add_single_conda_layer(image, hostpath, arcpath=None, filter=None):
         image.add_layer_path(hostpath, arcpath=arcpath, filter=filter)
 
 
-def _paths_from_record(record, hostpath):
+def _paths_from_record(record, hostpath, meta, dist_name):
     # read normal files, given by package metadata
-    dist_name = get_dist_name(record.fn)
     host_conda_opt = os.path.join(hostpath, "opt", "conda")
     dist_path = os.path.join(host_conda_opt, "pkgs", dist_name)
-    info_path = os.path.join(dist_path, "info")
-    files_path = os.path.join(info_path, "files")
-    with open(files_path) as f:
-        files = f.read().splitlines()
+    files = meta.get("files", [])
     paths = {os.path.join(host_conda_opt, f): "/opt/conda/" + f for f in files}
     paths.update({os.path.dirname(k): os.path.dirname(v) for k, v in paths.items()})
     # read package metadata
     paths[dist_path] = dist_path[len(hostpath) :]
-    meta_json = os.path.join(host_conda_opt, "conda-meta", dist_name + ".json")
-    paths[meta_json] = meta_json[len(hostpath) :]
+    meta_path = os.path.join(host_conda_opt, "conda-meta", dist_name + ".json")
+    paths[meta_path] = meta_path[len(hostpath) :]
     for root, dirnames, filenames in os.walk(dist_path):
         arcroot = root[len(hostpath) :]
         paths.update(
@@ -538,21 +534,17 @@ def add_conda_package_layers(image, hostpath, arcpath=None, filter=None, records
         for record in records:
             if counter > 100:
                 break
-            # read repodata for the package
-            repodata_record_path = os.path.join(
-                record.extracted_package_dir, "info", "repodata_record.json"
+            # read metadata for the package
+            dist_name = get_dist_name(record.fn)
+            meta_path = os.path.join(
+                hostpath, "opt", "conda", "conda-meta", dist_name + ".json"
             )
-            with open(repodata_record_path) as f:
-                repodata_record = json.load(f)
-            if repodata_record["subdir"] == "noarch":
-                # we don't remap noarch package files
-                continue
-            base_id = repodata_record.get(
-                "sha256", repodata_record.get("md5") + 32 * "0"
-            )
+            with open(meta_path) as f:
+                meta = json.load(f)
+            base_id = meta.get("sha256", meta.get("md5") + 32 * "0")
             # build layer, we need to use add_layer_paths() to deduplicate inodes,
             # i.e. properly capture hardlinks
-            paths = _paths_from_record(record, hostpath)
+            paths = _paths_from_record(record, hostpath, meta, dist_name)
             files_in_layers.update(paths.keys())
             image.add_layer_paths(paths, filter=filter, base_id=base_id)
             counter += 1
