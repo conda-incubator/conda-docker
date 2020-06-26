@@ -12,6 +12,7 @@ import tempfile
 import subprocess
 
 from conda.exports import download
+
 try:
     from conda import __version__ as CONDA_INTERFACE_VERSION
 
@@ -22,6 +23,7 @@ except ImportError:
         f"with sys.prefix: {sys.prefix}"
     )
 from conda.models.channel import all_channel_urls
+
 try:
     from conda.models.records import PackageCacheRecord
 except ImportError:
@@ -104,6 +106,16 @@ def load_repodatas(
     return repodatas
 
 
+def get_dist_name(fn):
+    """Returns the distname from the filename"""
+    fn = os.path.basename(fn)
+    if fn.endswith(".tar.bz2"):
+        dist_name = fn[:-8]
+    else:
+        dist_name, _ = os.path.splitext(fn)
+    return dist_name
+
+
 def _precs_from_environment(environment, list_flag, download_dir, user_conda):
     # get basic data about the environment's packages
     json_listing = subprocess.check_output(
@@ -123,10 +135,7 @@ def _precs_from_environment(environment, list_flag, download_dir, user_conda):
             continue
         url, _, md5 = line.rpartition("#")
         _, _, fn = url.rpartition("/")
-        if fn.endswith(".tar.bz2"):
-            dist_name = fn[:-8]
-        else:
-            dist_name, _ = splitext(fn)
+        dist_name = get_dist_name(fn)
         ordering.append((dist_name, url, md5, fn))
 
     # now, create PackageCacheRecords
@@ -188,9 +197,7 @@ def precs_from_package_specs(
     with timer(LOGGER, "loading repodata"):
         used_channels = {f"{x['base_url']}/{x['platform']}" for x in listing}
         repodatas = load_repodatas(
-            download_dir,
-            channels=used_channels,
-            channels_remap=channels_remap,
+            download_dir, channels=used_channels, channels_remap=channels_remap,
         )
 
     # now, create PackageCacheRecords
@@ -201,7 +208,7 @@ def precs_from_package_specs(
         plat = package.pop("platform")
         channel = f"{package['base_url']}/{plat}"
         url = f"{channel}/{fn}"
-        pkg_repodata = repodatas[channel]['packages'][fn]
+        pkg_repodata = repodatas[channel]["packages"][fn]
         md5 = pkg_repodata["md5"]
         package_tarball_full_path = os.path.join(download_dir, fn)
         extracted_package_dir = os.path.join(download_dir, dist_name)
@@ -491,6 +498,87 @@ def chroot_install(
             shutil.rmtree(entry)
 
 
+def add_single_conda_layer(image, hostpath, arcpath=None, filter=None):
+    LOGGER.info("adding single conda environment layer")
+    with timer(LOGGER, "adding single conda environment layer"):
+        image.add_layer_path(hostpath, arcpath=arcpath, filter=filter)
+
+
+def _paths_from_record(record, hostpath, meta, dist_name):
+    # read normal files, given by package metadata
+    host_conda_opt = os.path.join(hostpath, "opt", "conda")
+    dist_path = os.path.join(host_conda_opt, "pkgs", dist_name)
+    files = meta.get("files", [])
+    paths = {os.path.join(host_conda_opt, f): "/opt/conda/" + f for f in files}
+    paths.update({os.path.dirname(k): os.path.dirname(v) for k, v in paths.items()})
+    # read package metadata
+    paths[dist_path] = dist_path[len(hostpath) :]
+    meta_path = os.path.join(host_conda_opt, "conda-meta", dist_name + ".json")
+    paths[meta_path] = meta_path[len(hostpath) :]
+    for root, dirnames, filenames in os.walk(dist_path):
+        arcroot = root[len(hostpath) :]
+        paths.update(
+            {os.path.join(root, d): os.path.join(arcroot, d) for d in dirnames}
+        )
+        paths.update(
+            {os.path.join(root, f): os.path.join(arcroot, f) for f in filenames}
+        )
+    return paths
+
+
+def add_conda_package_layers(image, hostpath, arcpath=None, filter=None, records=None):
+    LOGGER.info("adding conda environment in package layers")
+    with timer(LOGGER, "adding conda environment in package layers"):
+        counter = 0
+        files_in_layers = set()
+        for record in records:
+            if counter > 100:
+                break
+            # read metadata for the package
+            dist_name = get_dist_name(record.fn)
+            meta_path = os.path.join(
+                hostpath, "opt", "conda", "conda-meta", dist_name + ".json"
+            )
+            with open(meta_path) as f:
+                meta = json.load(f)
+            base_id = meta.get("sha256", meta.get("md5") + 32 * "0")
+            # build layer, we need to use add_layer_paths() to deduplicate inodes,
+            # i.e. properly capture hardlinks
+            paths = _paths_from_record(record, hostpath, meta, dist_name)
+            files_in_layers.update(paths.keys())
+            image.add_layer_paths(paths, filter=filter, base_id=base_id)
+            counter += 1
+
+        # add remaining packages / files into a single layer
+        paths = {}
+        for root, dirnames, filenames in os.walk(hostpath):
+            arcroot = root[len(hostpath) :]
+            for name in dirnames + filenames:
+                host_name = os.path.join(root, name)
+                if host_name in files_in_layers:
+                    continue
+                paths[host_name] = os.path.join(arcroot, name)
+        image.add_layer_paths(paths, filter=filter)
+
+
+def add_conda_layers(
+    image,
+    hostpath,
+    arcpath=None,
+    filter=None,
+    records=None,
+    layering_strategy="layered",
+):
+    if layering_strategy == "single":
+        add_single_conda_layer(image, hostpath, arcpath=arcpath, filter=filter)
+    elif layering_strategy == "layered":
+        add_conda_package_layers(
+            image, hostpath, arcpath=arcpath, filter=filter, records=records
+        )
+    else:
+        raise ValueError(f"layering strategy not recognized: {layering_strategy}")
+
+
 def build_docker_environment(
     base_image,
     output_image,
@@ -500,6 +588,7 @@ def build_docker_environment(
     download_dir,
     user_conda,
     channels_remap,
+    layering_strategy="layered",
 ):
     def parse_image_name(name):
         parts = name.split(":")
@@ -531,9 +620,14 @@ def build_docker_environment(
                 channels_remap,
             )
 
-        LOGGER.info(f"adding conda environment layer")
-        with timer(LOGGER, "adding conda environment layer"):
-            image.add_layer_path(str(tmpdir), arcpath="/", filter=conda_file_filter())
+        add_conda_layers(
+            image,
+            str(tmpdir),
+            arcpath="/",
+            filter=conda_file_filter(),
+            records=records,
+            layering_strategy=layering_strategy,
+        )
 
         LOGGER.info(f"writing docker file to filesystem")
         with timer(LOGGER, "writing docker file"):

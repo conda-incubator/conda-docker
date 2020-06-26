@@ -9,12 +9,23 @@ from conda_docker.docker.tar import (
     write_v1,
     write_tar_from_contents,
     write_tar_from_path,
+    write_tar_from_paths,
 )
 
 
 class Layer:
     def __init__(
-        self, id, parent, architecture, os, created, author, checksum, size, content, config=None
+        self,
+        id,
+        parent,
+        architecture,
+        os,
+        created,
+        author,
+        checksum,
+        size,
+        content,
+        config=None,
     ):
         self.created = created
         self.author = author
@@ -45,9 +56,7 @@ class Layer:
             "WorkingDir": "",
             "Entrypoint": ["/bin/sh", "-c"],
             "OnBuild": None,
-            "Labels": {
-                "CONDA_DOCKER": VERSION,
-            }
+            "Labels": {"CONDA_DOCKER": VERSION,},
         }
 
     def list_files(self):
@@ -64,29 +73,36 @@ class Image:
     def remove_layer(self):
         self.layers.pop(0)
 
-    def add_layer_path(self, path, arcpath=None, recursive=True, filter=None):
+    def add_layer_path(
+        self, path, arcpath=None, recursive=True, filter=None, base_id=None
+    ):
         digest = write_tar_from_path(
             path, arcpath=arcpath, recursive=recursive, filter=filter
         )
-        self._add_layer(digest)
+        self._add_layer(digest, base_id=base_id)
 
-    def add_layer_contents(self, contents):
-        digest = write_tar_from_contents(contents)
-        self._add_layer(digest)
+    def add_layer_paths(self, paths, filter=None, base_id=None):
+        digest = write_tar_from_paths(paths, filter=filter)
+        self._add_layer(digest, base_id=base_id)
 
-    def _add_layer(self, digest):
+    def add_layer_contents(self, contents, filter=None, base_id=None):
+        digest = write_tar_from_contents(contents, filter=filter)
+        self._add_layer(digest, base_id=base_id)
+
+    def _add_layer(self, digest, base_id=None):
         if len(self.layers) == 0:
             parent_id = None
         else:
             parent_id = self.layers[0].id
+        layer_id = secrets.token_hex(32) if base_id is None else base_id
 
         layer = Layer(
-            id=secrets.token_hex(32),
+            id=layer_id,
             parent=parent_id,
             architecture="amd64",
             os="linux",
             created=datetime.now(timezone.utc).astimezone().isoformat(),
-            author="conda_docker",
+            author="conda-docker",
             checksum=None,
             size=len(digest),
             content=digest,

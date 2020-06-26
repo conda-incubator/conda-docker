@@ -22,6 +22,7 @@ class CondaMakeData:
     user_conda = default_prefix = None
     download_dir = precs = records = None
 
+
 @skip_if_conda_build
 @pytest.mark.incremental
 class TestCondaMake:

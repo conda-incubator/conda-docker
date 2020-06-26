@@ -63,6 +63,16 @@ def init_subcommand_build(subparser):
         "mamba (if available), and the user's conda otherwise.",
     )
     parser.add_argument(
+        "--layering-strategy",
+        dest="layering_strategy",
+        default="layered",
+        choices={"layered", "single"},
+        help="The strategy to employ when adding layers to the image:\n"
+        "* single: put all packages into a single layer\n"
+        "* layered (default): try to place each package in its own layer.\n"
+        "    noarch packages & leaf packages.",
+    )
+    parser.add_argument(
         "package_specs",
         nargs="*",
         help="packages specs to install in image if environment or prefix not given",
@@ -101,6 +111,7 @@ def handle_conda_build(args):
         download_dir,
         user_conda,
         channels_remap,
+        layering_strategy=args.layering_strategy,
     )
 
 
