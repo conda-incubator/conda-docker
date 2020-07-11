@@ -1,5 +1,5 @@
 """Interface for finding, grabbing, and installing conda pakcages into docker image"""
-# Significant portions of this file were originally forked from conda constuctor
+# Significant portions of this file were originally forked from conda & conda constuctor
 # (c) 2016 Anaconda, Inc. / https://anaconda.com
 # constructor is distributed under the terms of the BSD 3-clause license.
 import os
@@ -30,9 +30,10 @@ except ImportError:
     from conda.models.package_cache_record import PackageCacheRecord
 from conda.models.dist import Dist
 
-from conda_docker.docker.base import Image
-from conda_docker.registry.client import pull_image
-from conda_docker.utils import timer, md5_files
+from .docker.base import Image
+from .registry.client import pull_image
+from .utils import timer, md5_files
+from .download import download
 
 
 LOGGER = logging.getLogger(__name__)
