@@ -11,17 +11,14 @@ import logging
 import tempfile
 import subprocess
 
-from conda.exports import download
+import requests
+from requests import ConnectionError, HTTPError
+from requests.exceptions import (
+    InvalidSchema,
+    SSLError,
+    ProxyError as RequestsProxyError,
+)
 
-try:
-    from conda import __version__ as CONDA_INTERFACE_VERSION
-
-    conda_interface_type = "conda"
-except ImportError:
-    raise RuntimeError(
-        "Conda must be installed for python interpreter\n"
-        f"with sys.prefix: {sys.prefix}"
-    )
 from conda.models.channel import all_channel_urls
 
 try:
@@ -33,11 +30,11 @@ from conda.models.dist import Dist
 from .docker.base import Image
 from .registry.client import pull_image
 from .utils import timer, md5_files
-from .download import download
+from .download import download, disable_ssl_verify_warning, join_url
 
 
 LOGGER = logging.getLogger(__name__)
-CONDA_MAJOR_MINOR = tuple(int(x) for x in CONDA_INTERFACE_VERSION.split(".")[:2])
+REPODATA_FN = "repodata.json"
 
 
 def conda_file_filter(trim_static_libs=True, trim_js_maps=True):
@@ -68,25 +65,164 @@ def get_final_url(channels_remap, url):
     return url
 
 
-def get_repodata(url):
-    """Obtain the repodata from a channel URL"""
-    if CONDA_MAJOR_MINOR >= (4, 5):
-        from conda.core.subdir_data import fetch_repodata_remote_request
+def _ensure_text_type(value):
+    if hasattr(value, "decode"):
+        return value.decode("utf-8")
+    return value
 
-        raw_repodata_str = fetch_repodata_remote_request(url, None, None)
-    elif CONDA_MAJOR_MINOR >= (4, 4):
-        from conda.core.repodata import fetch_repodata_remote_request
 
-        raw_repodata_str = fetch_repodata_remote_request(url, None, None)
-    elif CONDA_MAJOR_MINOR >= (4, 3):
-        from conda.core.repodata import fetch_repodata_remote_request
+def _maybe_decompress(filename, resp_content):
+    if filename.endswith(".bz2"):
+        import bz2
 
-        repodata_obj = fetch_repodata_remote_request(None, url, None, None)
-        raw_repodata_str = json.dumps(repodata_obj)
-    else:
-        raise NotImplementedError(
-            f"unsupported version of conda: {CONDA_INTERFACE_VERSION}"
+        resp_content = bz2.decompress(resp_content)
+    return _ensure_text_type(resp_content).strip()
+
+
+def _add_http_value_to_dict(resp, http_key, d, dict_key):
+    value = resp.headers.get(http_key)
+    if value:
+        d[dict_key] = value
+
+
+def fetch_repodata_remote_request(
+    url,
+    etag=None,
+    mod_stamp=None,
+    repodata_fn=REPODATA_FN,
+    ssl_verify=True,
+    remote_connect_timeout_secs=9.15,
+    remote_read_timeout_secs=60.0,
+    proxies=None,
+):
+    """Get raw repodata string"""
+    if not ssl_verify:
+        disable_ssl_verify_warning()
+
+    headers = {}
+    if etag:
+        headers["If-None-Match"] = etag
+    if mod_stamp:
+        headers["If-Modified-Since"] = mod_stamp
+
+    headers["Accept-Encoding"] = "gzip, deflate, compress, identity"
+    headers["Content-Type"] = "application/json"
+    filename = repodata_fn
+
+    try:
+        timeout = remote_connect_timeout_secs, remote_read_timeout_secs
+        resp = requests.get(
+            join_url(url, filename), headers=headers, proxies=proxies, timeout=timeout
         )
+        if LOGGER.isEnabledFor(logging.DEBUG):
+            LOGGER.debug(str(resp)[:256])
+        resp.raise_for_status()
+    except RequestsProxyError:
+        raise
+    except InvalidSchema as e:
+        if "SOCKS" in str(e):
+            message = (
+                "Requests has identified that your current working environment is configured "
+                "to use a SOCKS proxy, but pysocks is not installed. To proceed, remove your "
+                "proxy configuration, run `conda install pysocks`, and then you can re-enable "
+                "your proxy configuration."
+            )
+            raise RuntimeError(message)
+        else:
+            raise
+    except (ConnectionError, HTTPError, SSLError) as e:
+        # status_code might not exist on SSLError
+        status_code = getattr(e.response, "status_code", None)
+        if status_code in (403, 404):
+            if not url.endswith("/noarch"):
+                LOGGER.info(
+                    "Unable to retrieve repodata (response: %d) for %s",
+                    status_code,
+                    url + "/" + repodata_fn,
+                )
+                return None
+            else:
+                if context.allow_non_channel_urls:
+                    LOGGER.warning(
+                        "Unable to retrieve repodata (response: %d) for %s",
+                        status_code,
+                        url + "/" + repodata_fn,
+                    )
+                    return None
+                else:
+                    raise
+        elif status_code == 401:
+            raise
+        elif status_code is not None and 500 <= status_code < 600:
+            help_message = (
+                "A remote server error occurred when trying to retrieve this URL. "
+                "A 500-type error (e.g. 500, 501, 502, 503, etc.) indicates the server failed to "
+                "fulfill a valid request. The problem may be spurious, and will resolve itself if you "
+                "try your request again. If the problem persists, consider notifying the maintainer "
+                "of the remote server."
+            )
+
+        else:
+            if url.startswith("https://repo.anaconda.com/"):
+                help_message = (
+                    "An HTTP error occurred when trying to retrieve this URL. "
+                    "HTTP errors are often intermittent, and a simple retry will get you on your way. "
+                    "If your current network has https://www.anaconda.com blocked, please file "
+                    "a support request with your network engineering team. "
+                    f"{url}"
+                )
+            else:
+                help_message = (
+                    "An HTTP error occurred when trying to retrieve this URL. "
+                    "HTTP errors are often intermittent, and a simple retry will get you on your way. "
+                    f"{url}"
+                )
+        raise HTTPError(
+            help_message,
+            join_url(url, filename),
+            status_code,
+            getattr(e.response, "reason", None),
+            getattr(e.response, "elapsed", None),
+            e.response,
+            caused_by=e,
+        )
+
+    if resp.status_code == 304:
+        raise RuntimeError("Response 304: Content Unchanged")
+
+    json_str = _maybe_decompress(filename, resp.content)
+
+    saved_fields = {"_url": url}
+    _add_http_value_to_dict(resp, "Etag", saved_fields, "_etag")
+    _add_http_value_to_dict(resp, "Last-Modified", saved_fields, "_mod")
+    _add_http_value_to_dict(resp, "Cache-Control", saved_fields, "_cache_control")
+
+    # add extra values to the raw repodata json
+    if json_str and json_str != "{}":
+        raw_repodata_str = "{0}, {1}".format(
+            json.dumps(saved_fields)[:-1],  # remove trailing '}'
+            json_str[1:],  # remove first '{'
+        )
+    else:
+        raw_repodata_str = _ensure_text_type(json.dumps(saved_fields))
+    return raw_repodata_str
+
+
+def get_repodata(
+    url,
+    ssl_verify=True,
+    remote_connect_timeout_secs=9.15,
+    remote_read_timeout_secs=60.0,
+    proxies=None,
+):
+    """Obtain the repodata from a channel URL"""
+    raw_repodata_str = fetch_repodata_remote_request(
+        url,
+        ssl_verify=ssl_verify,
+        remote_connect_timeout_secs=remote_connect_timeout_secs,
+        remote_read_timeout_secs=remote_read_timeout_secs,
+        proxies=proxies,
+    )
     full_repodata = json.loads(raw_repodata_str)
     return full_repodata
 

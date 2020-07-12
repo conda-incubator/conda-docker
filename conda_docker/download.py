@@ -26,7 +26,14 @@ from requests.exceptions import (
 LOGGER = logging.getLogger(__name__)
 
 
+def join_url(*args):
+    """Joins URL parts into a single string"""
+    start = '/' if not args[0] or args[0].startswith('/') else ''
+    return start + '/'.join(y for y in (x.strip('/') for x in args if x) if y)
+
+
 def disable_ssl_verify_warning():
+    """Disables insecure request warnings"""
     warnings.simplefilter("ignore", InsecureRequestWarning)
 
 
