@@ -29,7 +29,7 @@ from .docker.base import Image
 from .registry.client import pull_image
 from .utils import timer, md5_files
 from .download import download, disable_ssl_verify_warning, join_url
-from .conda_models import all_channel_urls
+from .conda_models import Context, all_channel_urls
 
 
 LOGGER = logging.getLogger(__name__)
@@ -227,16 +227,18 @@ def get_repodata(
 
 
 def load_repodatas(
-    download_dir, channels=(), conda_default_channels=(), channels_remap=()
+    download_dir, channels=(), conda_default_channels=(), channels_remap=(), context=None,
 ):
     """Load all repodatas into a single dict"""
+    if context is None:
+        context = Context()
     cache_dir = os.path.join(download_dir, "cache")
     os.makedirs(cache_dir, exist_ok=True)
 
     remaps = {url["src"].rstrip("/"): url["dest"].rstrip("/") for url in channels_remap}
     urls = all_channel_urls(
         url.rstrip("/")
-        for url in list(remaps) + list(channels) + list(conda_default_channels)
+        for url in list(remaps) + list(channels) + list(conda_default_channels), context=context
     )
     repodatas = {url: get_repodata(url) for url in urls}
     return repodatas
@@ -310,10 +312,13 @@ def precs_from_package_specs(
     channels=(),
     conda_default_channels=(),
     channels_remap=(),
+    context=None,
 ):
     """Get the package records from a list of package names/specs, as you
     might type them in on the command line. This has to perform a solve.
     """
+    if context is None:
+        context = Context()
     # perform solve
     solver_conda = find_solver_conda(solver, user_conda)
     LOGGER.info("solving conda environment")
@@ -333,7 +338,7 @@ def precs_from_package_specs(
     with timer(LOGGER, "loading repodata"):
         used_channels = {f"{x['base_url']}/{x['platform']}" for x in listing}
         repodatas = load_repodatas(
-            download_dir, channels=used_channels, channels_remap=channels_remap,
+            download_dir, channels=used_channels, channels_remap=channels_remap, context=context,
         )
 
     # now, create PackageCacheRecords
@@ -371,12 +376,15 @@ def find_precs(
     channels=(),
     conda_default_channels=(),
     channels_remap=(),
+    context=None,
 ):
     if name is not None:
         precs = precs_from_environment_name(name, download_dir, user_conda)
     elif prefix is not None:
         precs = precs_from_environment_prefix(prefix, download_dir, user_conda)
     elif package_specs is not None:
+        if context is None:
+            context = Context()
         precs = precs_from_package_specs(
             package_specs,
             solver,
@@ -385,6 +393,7 @@ def find_precs(
             channels=channels,
             conda_default_channels=conda_default_channels,
             channels_remap=channels_remap,
+            context=context,
         )
     else:
         raise RuntimeError("could not determine package list")
