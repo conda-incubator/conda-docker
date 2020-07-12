@@ -13,6 +13,7 @@ import shutil
 import ctypes
 from ctypes.util import find_library
 
+import requests
 from requests import ConnectionError, HTTPError
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 from requests.exceptions import (
@@ -76,6 +77,7 @@ def download(
     ssl_verify=True,
     remote_connect_timeout_secs=9.15,
     remote_read_timeout_secs=60.0,
+    proxies=None,
 ):
     if os.path.exists(target_full_path):
         raise IOError(f"Target {target_full_path} for {url} already exists")
@@ -86,8 +88,7 @@ def download(
 
     try:
         timeout = remote_connect_timeout_secs, remote_read_timeout_secs
-        session = CondaSession()
-        resp = session.get(url, stream=True, proxies=session.proxies, timeout=timeout)
+        resp = requests.get(url, stream=True, proxies=proxies, timeout=timeout)
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug(str(resp)[:256])
         resp.raise_for_status()
@@ -211,6 +212,7 @@ def download_text(
     ssl_verify=True,
     remote_connect_timeout_secs=9.15,
     remote_read_timeout_secs=60.0,
+    proxies=None,
 ):
     if sys.platform == "win32":
         preload_openssl()
@@ -218,9 +220,8 @@ def download_text(
         disable_ssl_verify_warning()
     try:
         timeout = remote_connect_timeout_secs, remote_read_timeout_secs
-        session = CondaSession()
-        response = session.get(
-            url, stream=True, proxies=session.proxies, timeout=timeout
+        response = requests.get(
+            url, stream=True, proxies=proxies, timeout=timeout
         )
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug(str(response)[:256])
