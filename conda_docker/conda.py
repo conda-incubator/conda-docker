@@ -87,6 +87,7 @@ def fetch_repodata_remote_request(
     remote_connect_timeout_secs=9.15,
     remote_read_timeout_secs=60.0,
     proxies=None,
+    context=None,
 ):
     """Get raw repodata string"""
     if not ssl_verify:
@@ -135,6 +136,8 @@ def fetch_repodata_remote_request(
                 )
                 return None
             else:
+                if context is None:
+                    context = Context()
                 if context.allow_non_channel_urls:
                     LOGGER.warning(
                         "Unable to retrieve repodata (response: %d) for %s",
@@ -207,21 +210,29 @@ def get_repodata(
     remote_connect_timeout_secs=9.15,
     remote_read_timeout_secs=60.0,
     proxies=None,
+    context=None,
 ):
     """Obtain the repodata from a channel URL"""
+    if context is None:
+        context = Context()
     raw_repodata_str = fetch_repodata_remote_request(
         url,
         ssl_verify=ssl_verify,
         remote_connect_timeout_secs=remote_connect_timeout_secs,
         remote_read_timeout_secs=remote_read_timeout_secs,
         proxies=proxies,
+        context=context,
     )
     full_repodata = json.loads(raw_repodata_str)
     return full_repodata
 
 
 def load_repodatas(
-    download_dir, channels=(), conda_default_channels=(), channels_remap=(), context=None,
+    download_dir,
+    channels=(),
+    conda_default_channels=(),
+    channels_remap=(),
+    context=None,
 ):
     """Load all repodatas into a single dict"""
     if context is None:
@@ -231,10 +242,13 @@ def load_repodatas(
 
     remaps = {url["src"].rstrip("/"): url["dest"].rstrip("/") for url in channels_remap}
     urls = all_channel_urls(
-        url.rstrip("/")
-        for url in list(remaps) + list(channels) + list(conda_default_channels), context=context
+        list(
+            url.rstrip("/")
+            for url in list(remaps) + list(channels) + list(conda_default_channels)
+        ),
+        context=context,
     )
-    repodatas = {url: get_repodata(url) for url in urls}
+    repodatas = {url: get_repodata(url, context=context) for url in urls}
     return repodatas
 
 
@@ -332,7 +346,10 @@ def precs_from_package_specs(
     with timer(LOGGER, "loading repodata"):
         used_channels = {f"{x['base_url']}/{x['platform']}" for x in listing}
         repodatas = load_repodatas(
-            download_dir, channels=used_channels, channels_remap=channels_remap, context=context,
+            download_dir,
+            channels=used_channels,
+            channels_remap=channels_remap,
+            context=context,
         )
 
     # now, create PackageCacheRecords
