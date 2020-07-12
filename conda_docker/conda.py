@@ -19,13 +19,11 @@ from requests.exceptions import (
     ProxyError as RequestsProxyError,
 )
 
-from conda.models.dist import Dist
-
 from .docker.base import Image
 from .registry.client import pull_image
 from .utils import timer, md5_files
 from .download import download, disable_ssl_verify_warning, join_url
-from .conda_models import Context, all_channel_urls
+from .conda_models import Context, all_channel_urls, PackageCacheRecord, Dist
 
 
 LOGGER = logging.getLogger(__name__)

@@ -254,3 +254,19 @@ class PackageCacheRecord(PackageRecord):
         super().__init__(**kwargs)
         self.package_tarball_full_path = package_tarball_full_path
         self.extracted_package_dir = extracted_package_dir
+
+
+class Dist:
+    """Distribution stub"""
+
+    def __init__(self, channel, dist_name=None, url=None):
+        self.channel = channel
+        self.dist_name = dist_name
+        self.url = url
+
+    @property
+    def full_name(self):
+        return self.__str__()
+
+    def __str__(self):
+        return f"{self.channel}::{self.dist_name}" if self.channel else self.dist_name
