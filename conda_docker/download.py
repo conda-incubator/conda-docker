@@ -9,6 +9,7 @@ import tempfile
 import warnings
 import sys
 import os
+import re
 import shutil
 import ctypes
 from ctypes.util import find_library
@@ -21,15 +22,104 @@ from requests.exceptions import (
     SSLError,
     ProxyError as RequestsProxyError,
 )
+from urllib3.util.url import Url, parse_url
 
 
 LOGGER = logging.getLogger(__name__)
+ON_WIN = bool(sys.platform == "win32")
 
 
 def join_url(*args):
     """Joins URL parts into a single string"""
     start = '/' if not args[0] or args[0].startswith('/') else ''
     return start + '/'.join(y for y in (x.strip('/') for x in args if x) if y)
+
+
+def path_to_url(path):
+    if not path:
+        raise ValueError('Not allowed: %r' % path)
+    if path.startswith(file_scheme):
+        try:
+            path.decode('ascii')
+        except UnicodeDecodeError:
+            raise ValueError('Non-ascii not allowed for things claiming to be URLs: %r' % path)
+        return path
+    path = os.path.abspath(os.path.expanduser(path)).replace('\\', '/')
+    # We do not use urljoin here because we want to take our own
+    # *very* explicit control of how paths get encoded into URLs.
+    #   We should not follow any RFCs on how to encode and decode
+    # them, we just need to make sure we can represent them in a
+    # way that will not cause problems for whatever amount of
+    # urllib processing we *do* need to do on them (which should
+    # be none anyway, but I doubt that is the case). I have gone
+    # for ASCII and % encoding of everything not alphanumeric or
+    # not in `!'()*-._/:`. This should be pretty save.
+    #
+    # To avoid risking breaking the internet, this code only runs
+    # for `file://` URLs.
+    #
+    percent_encode_chars = "!'()*-._/\\:"
+    percent_encode = lambda s: "".join(["%%%02X" % ord(c), c]
+                                       [c < "{" and c.isalnum() or c in percent_encode_chars]
+                                       for c in s)
+    if any(ord(char) >= 128 for char in path):
+        path = percent_encode(path.decode('unicode-escape')
+                              if hasattr(path, 'decode')
+                              else bytes(path, "utf-8").decode('unicode-escape'))
+
+    # https://blogs.msdn.microsoft.com/ie/2006/12/06/file-uris-in-windows/
+    if len(path) > 1 and path[1] == ':':
+        path = file_scheme + '/' + path
+    else:
+        path = file_scheme + path
+    return path
+
+
+def urlparse(url):
+    if ON_WIN and url.startswith('file:'):
+        url.replace('\\', '/')
+    return parse_url(url)
+
+
+_ANACONDA_TOKEN_RE = re.compile(r'/t/([a-zA-Z0-9-]*)')
+
+def split_anaconda_token(url):
+    """
+    Examples:
+        >>> split_anaconda_token("https://1.2.3.4/t/tk-123-456/path")
+        (u'https://1.2.3.4/path', u'tk-123-456')
+        >>> split_anaconda_token("https://1.2.3.4/t//path")
+        (u'https://1.2.3.4/path', u'')
+        >>> split_anaconda_token("https://some.domain/api/t/tk-123-456/path")
+        (u'https://some.domain/api/path', u'tk-123-456')
+        >>> split_anaconda_token("https://1.2.3.4/conda/t/tk-123-456/path")
+        (u'https://1.2.3.4/conda/path', u'tk-123-456')
+        >>> split_anaconda_token("https://1.2.3.4/path")
+        (u'https://1.2.3.4/path', None)
+        >>> split_anaconda_token("https://10.2.3.4:8080/conda/t/tk-123-45")
+        (u'https://10.2.3.4:8080/conda', u'tk-123-45')
+    """
+    _token_match = _ANACONDA_TOKEN_RE.search(url)
+    token = _token_match.groups()[0] if _token_match else None
+    cleaned_url = url.replace('/t/' + token, '', 1) if token is not None else url
+    return cleaned_url.rstrip('/'), token
+
+
+def split_scheme_auth_token(url):
+    """
+    Examples:
+        >>> split_scheme_auth_token("https://u:p@conda.io/t/x1029384756/more/path")
+        ('conda.io/more/path', 'https', 'u:p', 'x1029384756')
+        >>> split_scheme_auth_token(None)
+        (None, None, None, None)
+    """
+    if not url:
+        return None, None, None, None
+    cleaned_url, token = split_anaconda_token(url)
+    url_parts = urlparse(cleaned_url)
+    remainder_url = Url(host=url_parts.host, port=url_parts.port, path=url_parts.path,
+                        query=url_parts.query).url
+    return remainder_url, url_parts.scheme, url_parts.auth, token
 
 
 def disable_ssl_verify_warning():

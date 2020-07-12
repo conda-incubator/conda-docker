@@ -23,7 +23,9 @@ requirements:
     - pip
   run:
     - python
-    - conda
+    - requests
+    - toolz
+    - urllib3
     - mamba
     - conda-standalone
     - fakechroot

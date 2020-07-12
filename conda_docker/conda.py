@@ -19,8 +19,6 @@ from requests.exceptions import (
     ProxyError as RequestsProxyError,
 )
 
-from conda.models.channel import all_channel_urls
-
 try:
     from conda.models.records import PackageCacheRecord
 except ImportError:
@@ -31,6 +29,7 @@ from .docker.base import Image
 from .registry.client import pull_image
 from .utils import timer, md5_files
 from .download import download, disable_ssl_verify_warning, join_url
+from .conda_models import all_channel_urls
 
 
 LOGGER = logging.getLogger(__name__)
