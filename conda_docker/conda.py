@@ -19,10 +19,6 @@ from requests.exceptions import (
     ProxyError as RequestsProxyError,
 )
 
-try:
-    from conda.models.records import PackageCacheRecord
-except ImportError:
-    from conda.models.package_cache_record import PackageCacheRecord
 from conda.models.dist import Dist
 
 from .docker.base import Image

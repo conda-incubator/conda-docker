@@ -236,3 +236,21 @@ def all_channel_urls(channels, subdirs=None, with_credentials=True, context=None
         channel = Channel(chn, context=context)
         result.update(channel.urls(with_credentials, subdirs))
     return result
+
+
+class PackageRecord:
+    """PackageRecord stub"""
+
+    def __init__(self, url=None, md5=None, fn=None):
+        self.md5 = md5
+        self.url = url
+        self.fn = fn
+
+
+class PackageCacheRecord(PackageRecord):
+    """PackageCacheRecord stub"""
+
+    def __init__(self, package_tarball_full_path=None, extracted_package_dir=None, **kwargs):
+        super().__init__(**kwargs)
+        self.package_tarball_full_path = package_tarball_full_path
+        self.extracted_package_dir = extracted_package_dir
