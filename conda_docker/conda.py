@@ -248,9 +248,6 @@ def load_repodatas(
         ),
         context=context,
     )
-    import pdb
-
-    pdb.set_trace()
     repodatas = {url: get_repodata(url, context=context) for url in urls}
     return repodatas
 
@@ -462,11 +459,10 @@ def fetch_precs(download_dir, precs):
             extract_tarball(package_tarball_full_path, extracted_package_dir)
 
         repodata_record_path = os.path.join(
-            extracted_package_dir, "info", "repodata_record.json"
+           extracted_package_dir, "info", "repodata_record.json"
         )
-
         with open(repodata_record_path, "w") as fh:
-            json.dump(prec.dump(), fh, indent=2, sort_keys=True, separators=(",", ": "))
+           json.dump(prec.dump(), fh, indent=2, sort_keys=True, separators=(",", ": "))
 
         package_cache_record = PackageCacheRecord.from_objects(
             prec,

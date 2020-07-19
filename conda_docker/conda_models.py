@@ -750,10 +750,44 @@ def all_channel_urls(channels, subdirs=None, with_credentials=True, context=None
 class PackageRecord:
     """PackageRecord stub"""
 
-    def __init__(self, url=None, md5=None, fn=None):
+    def __init__(
+        self,
+        name=None,
+        version=None,
+        url=None,
+        md5=None,
+        fn=None,
+        base_url=None,
+        build_number=None,
+        build_string=None,
+        channel=None,
+        dist_name=None,
+    ):
+        self.name = name
+        self.version = version
         self.md5 = md5
         self.url = url
         self.fn = fn
+        self.base_url = base_url
+        self.build_number = build_number
+        self.build_string = build_string
+        self.channel = channel
+        self.dist_name = dist_name
+
+    def dump(self):
+        attrs = (
+            "name",
+            "version",
+            "md5",
+            "url",
+            "fn",
+            "base_url",
+            "build_number",
+            "build_string",
+            "channel",
+            "dist_name",
+        )
+        return {k: getattr(self, k, None) for k in attrs}
 
 
 class PackageCacheRecord(PackageRecord):
@@ -766,14 +800,26 @@ class PackageCacheRecord(PackageRecord):
         self.package_tarball_full_path = package_tarball_full_path
         self.extracted_package_dir = extracted_package_dir
 
+    @classmethod
+    def from_objects(
+        cls, prec, package_tarball_full_path=None, extracted_package_dir=None
+    ):
+        d = prec.dump()
+        return cls(
+            package_tarball_full_path=package_tarball_full_path,
+            extracted_package_dir=extracted_package_dir,
+            **d,
+        )
+
 
 class Dist:
     """Distribution stub"""
 
-    def __init__(self, channel, dist_name=None, url=None):
+    def __init__(self, channel, dist_name=None, url=None, base_url=None):
         self.channel = channel
         self.dist_name = dist_name
         self.url = url
+        self.base_url = base_url
 
     @property
     def full_name(self):
