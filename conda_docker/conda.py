@@ -453,16 +453,11 @@ def fetch_precs(download_dir, precs):
             LOGGER.info(f"fetching: {prec.fn}")
             download(prec.url, os.path.join(download_dir, prec.fn))
 
-        if not os.path.isdir(extracted_package_dir):
-            from conda.gateways.disk.create import extract_tarball
-
-            extract_tarball(package_tarball_full_path, extracted_package_dir)
-
-        repodata_record_path = os.path.join(
-           extracted_package_dir, "info", "repodata_record.json"
-        )
+        info_dir = os.path.join(extracted_package_dir, "info")
+        os.makedirs(info_dir, exist_ok=True)
+        repodata_record_path = os.path.join(info_dir, "repodata_record.json")
         with open(repodata_record_path, "w") as fh:
-           json.dump(prec.dump(), fh, indent=2, sort_keys=True, separators=(",", ": "))
+            json.dump(prec.dump(), fh, indent=2, sort_keys=True, separators=(",", ": "))
 
         package_cache_record = PackageCacheRecord.from_objects(
             prec,
