@@ -3,6 +3,7 @@
 # (c) 2016 Anaconda, Inc. / https://anaconda.com
 # constructor is distributed under the terms of the BSD 3-clause license.
 import os
+import re
 import sys
 import struct
 import platform
@@ -11,7 +12,13 @@ from collections import OrderedDict
 from toolz import unique, concat, concatv
 from urllib3.util.url import Url
 
-from .download import join_url, path_to_url, split_scheme_auth_token, urlparse
+from .download import (
+    join_url,
+    path_to_url,
+    split_scheme_auth_token,
+    urlparse,
+    split_anaconda_token,
+)
 
 
 ON_WIN = bool(sys.platform == "win32")
@@ -41,6 +48,21 @@ _PLATFORM_MAP = {
 NON_X86_LINUX_MACHINES = frozenset(
     {"armv6l", "armv7l", "aarch64", "ppc64", "ppc64le", "s390x",}
 )
+KNOWN_SUBDIRS = PLATFORM_DIRECTORIES = (
+    "noarch",
+    "linux-32",
+    "linux-64",
+    "linux-aarch64",
+    "linux-armv6l",
+    "linux-armv7l",
+    "linux-ppc64",
+    "linux-ppc64le",
+    "linux-s390x",
+    "osx-64",
+    "win-32",
+    "win-64",
+    "zos-z",
+)
 
 
 def path_expand(path):
@@ -68,6 +90,7 @@ class Context:
         channel_alias=DEFAULT_CHANNEL_ALIAS,
         custom_channels=None,
         migrated_channel_aliases=(),
+        migrated_custom_channels=None,
         allow_non_channel_urls=False,
     ):
         self._subdir = subdir
@@ -87,6 +110,9 @@ class Context:
         )
         self._custom_channels_obj = None
         self._migrated_channel_aliases = migrated_channel_aliases
+        self.migrated_custom_channels = (
+            {} if migrated_custom_channels is None else migrated_custom_channels
+        )
         self.allow_non_channel_urls = allow_non_channel_urls
 
     @property
@@ -105,6 +131,10 @@ class Context:
     @property
     def subdirs(self):
         return (self.subdir, "noarch")
+
+    @property
+    def known_subdirs(self):
+        return frozenset(concatv(KNOWN_SUBDIRS, self.subdirs))
 
     @property
     def root_prefix(self):
@@ -242,6 +272,253 @@ class Context:
         )
 
 
+RE_HAS_SCHEME = re.compile(r"[a-z][a-z0-9]{0,11}://")
+
+
+def has_scheme(value):
+    """Returns scheme"""
+    return RE_HAS_SCHEME.match(value)
+
+
+RE_WIN_PATH_BACKOUT = re.compile(r"(\\(?! ))")
+
+
+def win_path_backout(path):
+    """Replace all backslashes except those escaping spaces
+    if we pass a file url, something like file://\\unc\path\on\win, make sure
+    we clean that up too
+    """
+    return RE_WIN_PATH_BACKOUT.sub(r"/", path).replace(":////", "://")
+
+
+def _split_platform_re(known_subdirs):
+    _platform_match_regex = r"/(%s)(?:/|$)" % r"|".join(
+        r"%s" % d for d in known_subdirs
+    )
+    return re.compile(_platform_match_regex, re.IGNORECASE)
+
+
+def split_platform(known_subdirs, url):
+    """
+    Examples:
+        >>> from conda.base.constants import KNOWN_SUBDIRS
+        >>> split_platform(KNOWN_SUBDIRS, "https://1.2.3.4/t/tk-123/linux-ppc64le/path")
+        (u'https://1.2.3.4/t/tk-123/path', u'linux-ppc64le')
+    """
+    _platform_match = _split_platform_re(known_subdirs).search(url)
+    platform = _platform_match.groups()[0] if _platform_match else None
+    cleaned_url = url.replace("/" + platform, "", 1) if platform is not None else url
+    return cleaned_url.rstrip("/"), platform
+
+
+def strip_pkg_extension(path):
+    """
+    Examples:
+        >>> strip_pkg_extension("/path/_license-1.1-py27_1.tar.bz2")
+        ('/path/_license-1.1-py27_1', '.tar.bz2')
+        >>> strip_pkg_extension("/path/_license-1.1-py27_1.conda")
+        ('/path/_license-1.1-py27_1', '.conda')
+        >>> strip_pkg_extension("/path/_license-1.1-py27_1")
+        ('/path/_license-1.1-py27_1', None)
+    """
+    # NOTE: not using CONDA_TARBALL_EXTENSION_V1 or CONDA_TARBALL_EXTENSION_V2 to comply with
+    #       import rules and to avoid a global lookup.
+    if path[-6:] == ".conda":
+        return path[:-6], ".conda"
+    elif path[-8:] == ".tar.bz2":
+        return path[:-8], ".tar.bz2"
+    elif path[-5:] == ".json":
+        return path[:-5], ".json"
+    else:
+        return path, None
+
+
+def split_conda_url_easy_parts(known_subdirs, url):
+    # scheme, auth, token, platform, package_filename, host, port, path, query
+    cleaned_url, token = split_anaconda_token(url)
+    cleaned_url, platform = split_platform(known_subdirs, cleaned_url)
+    _, ext = strip_pkg_extension(cleaned_url)
+    cleaned_url, package_filename = (
+        cleaned_url.rsplit("/", 1) if ext else (cleaned_url, None)
+    )
+    url_parts = urlparse(cleaned_url)
+    return (
+        url_parts.scheme,
+        url_parts.auth,
+        token,
+        platform,
+        package_filename,
+        url_parts.host,
+        url_parts.port,
+        url_parts.path,
+        url_parts.query,
+    )
+
+
+def tokenized_conda_url_startswith(test_url, startswith_url):
+    test_url, startswith_url = urlparse(test_url), urlparse(startswith_url)
+    if test_url.host != startswith_url.host or test_url.port != startswith_url.port:
+        return False
+    norm_url_path = lambda url: url.path.strip("/") or "/"
+    return tokenized_startswith(
+        norm_url_path(test_url).split("/"), norm_url_path(startswith_url).split("/")
+    )
+
+
+def _read_channel_configuration(scheme, host, port, path):
+    # return location, name, scheme, auth, token
+    path = path and path.rstrip("/")
+    test_url = Url(host=host, port=port, path=path).url
+
+    # Step 1. No path given; channel name is None
+    if not path:
+        return (
+            Url(host=host, port=port).url.rstrip("/"),
+            None,
+            scheme or None,
+            None,
+            None,
+        )
+
+    # Step 2. migrated_custom_channels matches
+    for name, location in sorted(
+        context.migrated_custom_channels.items(), reverse=True, key=lambda x: len(x[0])
+    ):
+        location, _scheme, _auth, _token = split_scheme_auth_token(location)
+        if tokenized_conda_url_startswith(test_url, join_url(location, name)):
+            # translate location to new location, with new credentials
+            subname = test_url.replace(join_url(location, name), "", 1).strip("/")
+            channel_name = join_url(name, subname)
+            channel = _get_channel_for_name(channel_name)
+            return (
+                channel.location,
+                channel_name,
+                channel.scheme,
+                channel.auth,
+                channel.token,
+            )
+
+    # Step 3. migrated_channel_aliases matches
+    for migrated_alias in context.migrated_channel_aliases:
+        if test_url.startswith(migrated_alias.location):
+            name = test_url.replace(migrated_alias.location, "", 1).strip("/")
+            ca = context.channel_alias
+            return ca.location, name, ca.scheme, ca.auth, ca.token
+
+    # Step 4. custom_channels matches
+    for name, channel in sorted(
+        context.custom_channels.items(), reverse=True, key=lambda x: len(x[0])
+    ):
+        that_test_url = join_url(channel.location, channel.name)
+        if tokenized_startswith(test_url.split("/"), that_test_url.split("/")):
+            subname = test_url.replace(that_test_url, "", 1).strip("/")
+            return (
+                channel.location,
+                join_url(channel.name, subname),
+                scheme,
+                channel.auth,
+                channel.token,
+            )
+
+    # Step 5. channel_alias match
+    ca = context.channel_alias
+    if ca.location and tokenized_startswith(
+        test_url.split("/"), ca.location.split("/")
+    ):
+        name = test_url.replace(ca.location, "", 1).strip("/") or None
+        return ca.location, name, scheme, ca.auth, ca.token
+
+    # Step 6. not-otherwise-specified file://-type urls
+    if host is None:
+        # this should probably only happen with a file:// type url
+        assert port is None
+        location, name = test_url.rsplit("/", 1)
+        if not location:
+            location = "/"
+        _scheme, _auth, _token = "file", None, None
+        return location, name, _scheme, _auth, _token
+
+    # Step 7. fall through to host:port as channel_location and path as channel_name
+    #  but bump the first token of paths starting with /conda for compatibility with
+    #  Anaconda Enterprise Repository software.
+    bump = None
+    path_parts = path.strip("/").split("/")
+    if path_parts and path_parts[0] == "conda":
+        bump, path = "conda", "/".join(drop(1, path_parts))
+    return (
+        Url(host=host, port=port, path=bump).url.rstrip("/"),
+        path.strip("/") or None,
+        scheme or None,
+        None,
+        None,
+    )
+
+
+def parse_conda_channel_url(url, context=None):
+    """Parses conda URLs"""
+    (
+        scheme,
+        auth,
+        token,
+        platform,
+        package_filename,
+        host,
+        port,
+        path,
+        query,
+    ) = split_conda_url_easy_parts(context.known_subdirs, url)
+    # recombine host, port, path to get a channel_name and channel_location
+    (
+        channel_location,
+        channel_name,
+        configured_scheme,
+        configured_auth,
+        configured_token,
+    ) = _read_channel_configuration(scheme, host, port, path)
+    return Channel(
+        configured_scheme or "https",
+        auth or configured_auth,
+        channel_location,
+        token or configured_token,
+        channel_name,
+        platform,
+        package_filename,
+        context=context,
+    )
+
+
+RE_PATH_MATCH = re.compile(
+    r"\./"  # ./
+    r"|\.\."  # ..
+    r"|~"  # ~
+    r"|/"  # /
+    r"|[a-zA-Z]:[/\\]"  # drive letter, colon, forward or backslash
+    r"|\\\\"  # windows UNC path
+    r"|//"  # windows UNC path
+)
+
+
+def is_path(value):
+    if "://" in value:
+        return False
+    return RE_PATH_MATCH.match(value)
+
+
+def is_package_file(path):
+    """
+    Examples:
+        >>> is_package_file("/path/_license-1.1-py27_1.tar.bz2")
+        True
+        >>> is_package_file("/path/_license-1.1-py27_1.conda")
+        True
+        >>> is_package_file("/path/_license-1.1-py27_1")
+        False
+    """
+    # NOTE: not using CONDA_TARBALL_EXTENSION_V1 or CONDA_TARBALL_EXTENSION_V2 to comply with
+    #       import rules and to avoid a global lookup.
+    return path[-6:] == ".conda" or path[-8:] == ".tar.bz2"
+
+
 class Channel:
     """Channel stub"""
 
@@ -337,7 +614,40 @@ class Channel:
             return ["%s://%s" % (self.scheme, b) for b in bases]
 
     @staticmethod
-    def make_simple_channel(channel_alias, channel_url, name=None):
+    def from_url(url, context=None):
+        return parse_conda_channel_url(url, context=context)
+
+    @staticmethod
+    def from_value(value, context=None):
+        if value in (None, "<unknown>", "None:///<unknown>", "None"):
+            return Channel(name=UNKNOWN_CHANNEL, context=context)
+        value = str(value)
+        if has_scheme(value):
+            if value.startswith("file:"):
+                value = win_path_backout(value)
+            return Channel.from_url(value, context=context)
+        elif is_path(value):
+            return Channel.from_url(path_to_url(value), context=context)
+        elif is_package_file(value):
+            if value.startswith("file:"):
+                value = win_path_backout(value)
+            return Channel.from_url(value, context=context)
+        else:
+            # at this point assume we don't have a bare (non-scheme) url
+            #   e.g. this would be bad:  repo.anaconda.com/pkgs/free
+            _stripped, platform = split_platform(value, context.known_subdirs)
+            if _stripped in context.custom_multichannels:
+                return MultiChannel(
+                    _stripped,
+                    context.custom_multichannels[_stripped],
+                    platform,
+                    context=context,
+                )
+            else:
+                return Channel.from_channel_name(value, context=context)
+
+    @staticmethod
+    def make_simple_channel(channel_alias, channel_url, name=None, context=None):
         ca = channel_alias
         test_url, scheme, auth, token = split_scheme_auth_token(channel_url)
         if name and scheme:
@@ -347,6 +657,7 @@ class Channel:
                 location=test_url,
                 token=token,
                 name=name.strip("/"),
+                context=context,
             )
         if scheme:
             if ca.location and test_url.startswith(ca.location):
@@ -361,6 +672,7 @@ class Channel:
                 location=location,
                 token=token,
                 name=name.strip("/"),
+                context=context,
             )
         else:
             return Channel(
@@ -369,14 +681,64 @@ class Channel:
                 location=ca.location,
                 token=ca.token,
                 name=name and name.strip("/") or channel_url.strip("/"),
+                context=context,
             )
+
+
+class MultiChannel(Channel):
+    def __init__(self, name, channels, platform=None, context=None):
+        self.name = name
+        self.location = None
+
+        if platform:
+            c_dicts = tuple(c.dump() for c in channels)
+            any(cd.update(platform=platform) for cd in c_dicts)
+            self._channels = tuple(Channel(context=context, **cd) for cd in c_dicts)
+        else:
+            self._channels = channels
+
+        self.scheme = None
+        self.auth = None
+        self.token = None
+        self.platform = platform
+        self.package_filename = None
+
+    @property
+    def channel_location(self):
+        return self.location
+
+    @property
+    def canonical_name(self):
+        return self.name
+
+    def urls(self, with_credentials=False, subdirs=None):
+        from itertools import chain
+
+        _channels = self._channels
+        return list(
+            chain.from_iterable(c.urls(with_credentials, subdirs) for c in _channels)
+        )
+
+    @property
+    def base_url(self):
+        return None
+
+    @property
+    def base_urls(self):
+        return tuple(c.base_url for c in self._channels)
+
+    def url(self, with_credentials=False):
+        return None
+
+    def dump(self):
+        return {"name": self.name, "channels": tuple(c.dump() for c in self._channels)}
 
 
 def all_channel_urls(channels, subdirs=None, with_credentials=True, context=None):
     """Finds channel URLs"""
     result = set()
     for chn in channels:
-        channel = Channel(chn, context=context)
+        channel = Channel.from_valuel(chn, context=context)
         result.update(channel.urls(with_credentials, subdirs))
     return result
 

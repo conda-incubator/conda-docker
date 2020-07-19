@@ -248,6 +248,9 @@ def load_repodatas(
         ),
         context=context,
     )
+    import pdb
+
+    pdb.set_trace()
     repodatas = {url: get_repodata(url, context=context) for url in urls}
     return repodatas
 
