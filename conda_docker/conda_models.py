@@ -355,6 +355,10 @@ def split_conda_url_easy_parts(known_subdirs, url):
     )
 
 
+def tokenized_startswith(test_iterable, startswith_iterable):
+    return all(t == sw for t, sw in zip(test_iterable, startswith_iterable))
+
+
 def tokenized_conda_url_startswith(test_url, startswith_url):
     test_url, startswith_url = urlparse(test_url), urlparse(startswith_url)
     if test_url.host != startswith_url.host or test_url.port != startswith_url.port:
@@ -365,7 +369,7 @@ def tokenized_conda_url_startswith(test_url, startswith_url):
     )
 
 
-def _read_channel_configuration(scheme, host, port, path):
+def _read_channel_configuration(scheme, host, port, path, context=None):
     # return location, name, scheme, auth, token
     path = path and path.rstrip("/")
     test_url = Url(host=host, port=port, path=path).url
@@ -474,7 +478,7 @@ def parse_conda_channel_url(url, context=None):
         configured_scheme,
         configured_auth,
         configured_token,
-    ) = _read_channel_configuration(scheme, host, port, path)
+    ) = _read_channel_configuration(scheme, host, port, path, context=context)
     return Channel(
         configured_scheme or "https",
         auth or configured_auth,
@@ -738,7 +742,7 @@ def all_channel_urls(channels, subdirs=None, with_credentials=True, context=None
     """Finds channel URLs"""
     result = set()
     for chn in channels:
-        channel = Channel.from_valuel(chn, context=context)
+        channel = Channel.from_value(chn, context=context)
         result.update(channel.urls(with_credentials, subdirs))
     return result
 
