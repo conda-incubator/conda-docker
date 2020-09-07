@@ -590,6 +590,23 @@ def build_docker_environment(
     channels_remap,
     layering_strategy="layered",
 ):
+    image = build_docker_environment_image(base_image, output_image, records, default_prefix, download_dir, user_conda, channels_remap, layering_strategy)
+
+    LOGGER.info(f"writing docker file to filesystem")
+    with timer(LOGGER, "writing docker file"):
+        image.write_file(output_filename)
+
+
+def build_docker_environment_image(
+    base_image,
+    output_image,
+    records,
+    default_prefix,
+    download_dir,
+    user_conda,
+    channels_remap,
+    layering_strategy="layered",
+):
     def parse_image_name(name):
         parts = name.split(":")
         if len(parts) == 1:
@@ -629,6 +646,4 @@ def build_docker_environment(
             layering_strategy=layering_strategy,
         )
 
-        LOGGER.info(f"writing docker file to filesystem")
-        with timer(LOGGER, "writing docker file"):
-            image.write_file(output_filename)
+        return image
