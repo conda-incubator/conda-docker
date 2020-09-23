@@ -408,7 +408,16 @@ def chroot_install(
     orig_standalone = os.path.join(orig_prefix, "standalone_conda", "conda.exe")
     host_standalone = os.path.join(new_root, "_conda.exe")
     os.makedirs(host_pkgs_dir, exist_ok=True)
-    os.link(orig_standalone, host_standalone)
+    copy_func = os.link
+    try:
+        copy_func(orig_standalone, host_standalone)
+    except OSError as e:
+        if e.errno == 18:
+            # Paths are on different devices, use copies instead
+            copy_func = shutil.copy
+            copy_func(orig_standalone, host_standalone)
+        else:
+            raise
 
     # now link in pkgs
     targ_conda_opt = os.path.join("/opt", "conda")
@@ -417,7 +426,7 @@ def chroot_install(
     targ_record_fns = []
     for record in records:
         host_record_fn = os.path.join(host_pkgs_dir, record.fn)
-        os.link(record.package_tarball_full_path, host_record_fn)
+        copy_func(record.package_tarball_full_path, host_record_fn)
         host_record_fns.append(host_record_fn)
         targ_record_fns.append(os.path.join(targ_pkgs_dir, record.fn))
 
