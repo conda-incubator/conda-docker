@@ -2,14 +2,15 @@ import sys
 import logging
 import argparse
 
-from conda_docker.conda import (
+from .conda_models import Context
+from .conda import (
     build_docker_environment,
     find_user_conda,
     conda_info,
     find_precs,
     fetch_precs,
 )
-from conda_docker.logging import init_logging
+from .logging import init_logging
 
 
 def cli(args):
@@ -89,6 +90,7 @@ def handle_conda_build(args):
     channels = info.get("channels", [])
     conda_default_channels = info.get("conda_default_channels", [])
     channels_remap = info.get("channels_remap", [])
+    context = Context()
     precs = find_precs(
         user_conda,
         download_dir,
@@ -99,6 +101,7 @@ def handle_conda_build(args):
         prefix=args.prefix,
         package_specs=args.package_specs,
         solver=args.solver,
+        context=context,
     )
     records = fetch_precs(download_dir, precs)
     # now build image
