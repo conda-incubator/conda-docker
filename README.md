@@ -81,8 +81,7 @@ How does this work?
 
 Turns out that docker images are just a tar collection of files. There
 are several versions of the spec. For `v1.0` the specification is
-\[[defined
-here](https://github.com/moby/moby/blob/master/image/spec/v1.md).
+[defined here](https://github.com/moby/moby/blob/master/image/spec/v1.md).
 Instead of writing down the spec lets look into a single docker image.
 
 ```shell
