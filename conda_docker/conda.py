@@ -186,7 +186,7 @@ def precs_from_package_specs(
     ), tempfile.TemporaryDirectory() as tmpdir:
         # need temp env prefix, just in case.
         json_listing = subprocess.check_output(
-            [solver_conda, "create", "--dry-run", "--prefix", str(tmpdir), "--json"]
+            [solver_conda, "create", "--dry-run", "--prefix", os.path.join(tmpdir, "prefix"), "--json"]
             + package_specs
         )
     listing = json.loads(json_listing)
