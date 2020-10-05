@@ -32,7 +32,7 @@ from conda.models.dist import Dist
 
 from conda_docker.docker.base import Image
 from conda_docker.registry.client import pull_image
-from conda_docker.utils import timer, md5_files
+from conda_docker.utils import timer, md5_files, can_link
 
 
 LOGGER = logging.getLogger(__name__)
@@ -408,7 +408,13 @@ def chroot_install(
     orig_standalone = os.path.join(orig_prefix, "standalone_conda", "conda.exe")
     host_standalone = os.path.join(new_root, "_conda.exe")
     os.makedirs(host_pkgs_dir, exist_ok=True)
-    os.link(orig_standalone, host_standalone)
+
+    if can_link(orig_prefix, new_root):
+        copy_func = os.link
+    else:
+        copy_func = shutil.copy
+
+    copy_func(orig_standalone, host_standalone)
 
     # now link in pkgs
     targ_conda_opt = os.path.join("/opt", "conda")
@@ -417,7 +423,7 @@ def chroot_install(
     targ_record_fns = []
     for record in records:
         host_record_fn = os.path.join(host_pkgs_dir, record.fn)
-        os.link(record.package_tarball_full_path, host_record_fn)
+        copy_func(record.package_tarball_full_path, host_record_fn)
         host_record_fns.append(host_record_fn)
         targ_record_fns.append(os.path.join(targ_pkgs_dir, record.fn))
 
