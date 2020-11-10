@@ -3,3 +3,5 @@ Authors are sorted by number of commits.
 
 * Anthony Scopatz
 * Chris Ostrouchov
+* Chris Burr
+* Julian Rüth
