@@ -6,3 +6,7 @@
   email: scopatz@gmail.com
   num_commits: 51
   first_commit: 2020-06-13 13:54:48
+- name: Chris Burr
+  email: christopher.burr@cern.ch
+  alternate_emails:
+    - chrisburr@users.noreply.github.com
