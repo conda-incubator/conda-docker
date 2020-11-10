@@ -4,7 +4,29 @@ conda-docker Change Log
 
 
 
+
 <!-- current developments -->
+
+## v0.0.3
+**Changed:**
+
+* `build_docker_environment` refactored into two functions to expose
+  an internal function `build_docker_environment_image` to be used by
+  libraries e.g. conda-store
+
+**Fixed:**
+
+* Use copies if conda installation and temporary directory are on different devices
+* JSONDecodeError when using a list of package specification
+
+**Authors:**
+
+* Anthony Scopatz
+* Chris Ostrouchov
+* Chris Burr
+* Julian Rüth
+
+
 
 ## v0.0.2
 **Added:**
