@@ -27,6 +27,7 @@ requirements:
     - mamba
     - conda-standalone
     - fakechroot
+    - python-docker
 
 test:
   imports:

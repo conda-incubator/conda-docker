@@ -30,7 +30,7 @@ def main():
         },
         package_data={"conda_docker": ["*.xsh"]},
         entry_points={"console_scripts": ["conda-docker=conda_docker.cli:main"],},
-        # install_requires=['xonsh', 'lazyasd', 'ruamel.yaml', 'tqdm', 'requests', 'dataclasses'],
+        # install_requires=['xonsh', 'lazyasd', 'ruamel.yaml', 'tqdm', 'requests', 'dataclasses', 'python-docker'],
         python_requires=">=3.6",
         zip_safe=False,
     )

@@ -11,6 +11,8 @@ import logging
 import tempfile
 import subprocess
 
+from python_docker.base import Image
+from python_docker.registry import Registry
 from conda.exports import download
 
 try:
@@ -30,8 +32,6 @@ except ImportError:
     from conda.models.package_cache_record import PackageCacheRecord
 from conda.models.dist import Dist
 
-from conda_docker.docker.base import Image
-from conda_docker.registry.client import pull_image
 from conda_docker.utils import timer, md5_files, can_link
 
 
@@ -600,7 +600,7 @@ def build_docker_environment(
 
     LOGGER.info(f"writing docker file to filesystem")
     with timer(LOGGER, "writing docker file"):
-        image.write_file(output_filename)
+        image.write_filename(output_filename)
 
 
 def build_docker_environment_image(
@@ -628,7 +628,8 @@ def build_docker_environment_image(
         else:
             LOGGER.info(f"pulling base image {base_image_name}:{base_image_tag}")
             with timer(LOGGER, "pulling base image"):
-                image = pull_image(base_image_name, base_image_tag)
+                registry = Registry()  # using dockerhub only at the moment
+                image = registry.pull_image(base_image_name, base_image_tag)
                 image.name = output_image_name
                 image.tag = output_image_tag
 
