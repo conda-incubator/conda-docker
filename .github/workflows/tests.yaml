@@ -30,8 +30,8 @@ jobs:
       - name: Black Formatting
         run: |
           black --version
-          black conda_docker --diff
-          black --check conda_docker
+          black conda_docker tests --diff
+          black --check conda_docker tests
 
       - name: Flake8 formatting
         run: |
