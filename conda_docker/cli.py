@@ -83,7 +83,6 @@ def init_subcommand_build(subparser):
 def handle_conda_build(args):
     user_conda = find_user_conda() if args.conda_exe is None else args.conda_exe
     info = conda_info(user_conda)
-    platform = info["platform"]
     download_dir = info["pkgs_dirs"][0]
     default_prefix = info["default_prefix"]
     channels = info.get("channels", [])

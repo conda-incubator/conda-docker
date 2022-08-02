@@ -1,0 +1,43 @@
+name: "Tests"
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+jobs:
+  tests:
+    name: "Test conda-docker"
+    runs-on: "ubuntu-latest"
+    defaults:
+      run:
+        shell: bash -l {0}
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          activate-environment: conda-docker-dev
+          environment-file: environment-dev.yaml
+          auto-activate-base: false
+
+      - name: Conda environment information
+        run: |
+          conda info
+          conda list
+
+      - name: Black Formatting
+        run: |
+          black --version
+          black conda_docker tests --diff
+          black --check conda_docker tests
+
+      - name: Flake8 formatting
+        run: |
+          flake8 --version
+          flake8
+
+      - name: Unit Tests
+        run: |
+          pytest

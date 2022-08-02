@@ -11,6 +11,8 @@ import logging
 import tempfile
 import subprocess
 
+from python_docker.base import Image
+from python_docker.registry import Registry
 from conda.exports import download
 
 try:
@@ -30,8 +32,6 @@ except ImportError:
     from conda.models.package_cache_record import PackageCacheRecord
 from conda.models.dist import Dist
 
-from conda_docker.docker.base import Image
-from conda_docker.registry.client import pull_image
 from conda_docker.utils import timer, md5_files, can_link
 
 
@@ -142,7 +142,7 @@ def _precs_from_environment(environment, list_flag, download_dir, user_conda):
     precs = []
     for dist_name, url, md5, fn in ordering:
         package = packages[dist_name]
-        platform_arch = package.pop("platform")
+        platform_arch = package.pop("platform")  # noqa
         package_tarball_full_path = os.path.join(download_dir, fn)
         extracted_package_dir = os.path.join(download_dir, dist_name)
         precs.append(
@@ -186,7 +186,14 @@ def precs_from_package_specs(
     ), tempfile.TemporaryDirectory() as tmpdir:
         # need temp env prefix, just in case.
         json_listing = subprocess.check_output(
-            [solver_conda, "create", "--dry-run", "--prefix", os.path.join(tmpdir, "prefix"), "--json"]
+            [
+                solver_conda,
+                "create",
+                "--dry-run",
+                "--prefix",
+                os.path.join(tmpdir, "prefix"),
+                "--json",
+            ]
             + package_specs
         )
     listing = json.loads(json_listing)
@@ -197,7 +204,9 @@ def precs_from_package_specs(
     with timer(LOGGER, "loading repodata"):
         used_channels = {f"{x['base_url']}/{x['platform']}" for x in listing}
         repodatas = load_repodatas(
-            download_dir, channels=used_channels, channels_remap=channels_remap,
+            download_dir,
+            channels=used_channels,
+            channels_remap=channels_remap,
         )
 
     # now, create PackageCacheRecords
@@ -596,11 +605,20 @@ def build_docker_environment(
     channels_remap,
     layering_strategy="layered",
 ):
-    image = build_docker_environment_image(base_image, output_image, records, default_prefix, download_dir, user_conda, channels_remap, layering_strategy)
+    image = build_docker_environment_image(
+        base_image,
+        output_image,
+        records,
+        default_prefix,
+        download_dir,
+        user_conda,
+        channels_remap,
+        layering_strategy,
+    )
 
-    LOGGER.info(f"writing docker file to filesystem")
+    LOGGER.info("writing docker file to filesystem")
     with timer(LOGGER, "writing docker file"):
-        image.write_file(output_filename)
+        image.write_filename(output_filename)
 
 
 def build_docker_environment_image(
@@ -628,7 +646,10 @@ def build_docker_environment_image(
         else:
             LOGGER.info(f"pulling base image {base_image_name}:{base_image_tag}")
             with timer(LOGGER, "pulling base image"):
-                image = pull_image(base_image_name, base_image_tag)
+                registry = Registry(
+                    hostname="https://registry-1.docker.io"
+                )  # using dockerhub only at the moment
+                image = registry.pull_image(base_image_name, base_image_tag)
                 image.name = output_image_name
                 image.tag = output_image_tag
 

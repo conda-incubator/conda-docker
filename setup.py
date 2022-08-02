@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import os
-import sys
 
 from setuptools import setup
 
@@ -29,8 +28,8 @@ def main():
             "conda_docker.registry": "conda_docker/registry",
         },
         package_data={"conda_docker": ["*.xsh"]},
-        entry_points={"console_scripts": ["conda-docker=conda_docker.cli:main"],},
-        # install_requires=['xonsh', 'lazyasd', 'ruamel.yaml', 'tqdm', 'requests', 'dataclasses'],
+        entry_points={"console_scripts": ["conda-docker=conda_docker.cli:main"]},
+        # install_requires=['xonsh', 'lazyasd', 'ruamel.yaml', 'tqdm', 'requests', 'dataclasses', 'python-docker'],
         python_requires=">=3.6",
         zip_safe=False,
     )
