@@ -54,5 +54,8 @@ jobs:
       - name: CLI Tests
         run: |
           conda-docker --help
-          conda-docker -n conda-docker-dev -i conda-docker:latest -o conda-docker-dev.docker.tar
-          docker load --input conda-docker-dev.docker.tar
+          conda-docker build -n conda-docker-dev -i conda-docker-dev-1:latest -o conda-docker-dev-1.docker.tar
+          docker load --input conda-docker-dev-1.docker.tar
+
+          conda-docker build -i conda-docker-dev-2:latest -o conda-docker-dev-2.docker.tar numpy python==3.10
+          docker load --input conda-docker-dev-2.docker.tar
