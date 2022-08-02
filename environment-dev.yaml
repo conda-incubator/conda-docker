@@ -12,3 +12,5 @@ dependencies:
  - pytest
  - black==22.3.0
  - flake8
+ - build
+ - twine
