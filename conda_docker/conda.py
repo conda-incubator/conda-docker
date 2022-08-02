@@ -628,7 +628,9 @@ def build_docker_environment_image(
         else:
             LOGGER.info(f"pulling base image {base_image_name}:{base_image_tag}")
             with timer(LOGGER, "pulling base image"):
-                registry = Registry()  # using dockerhub only at the moment
+                registry = Registry(
+                    hostname='registry-1.docker.io'
+                )  # using dockerhub only at the moment
                 image = registry.pull_image(base_image_name, base_image_tag)
                 image.name = output_image_name
                 image.tag = output_image_tag
