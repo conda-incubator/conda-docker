@@ -56,6 +56,8 @@ jobs:
           conda-docker --help
           conda-docker build -n conda-docker-dev -i conda-docker-dev-1:latest -o conda-docker-dev-1.docker.tar
           docker load --input conda-docker-dev-1.docker.tar
+          docker run conda-docker-dev-1:latest python -c "import conda; import sys; print(sys.version_info); print('I ran conda-docker-dev-1')"
 
           conda-docker build -i conda-docker-dev-2:latest -o conda-docker-dev-2.docker.tar numpy python==3.10
           docker load --input conda-docker-dev-2.docker.tar
+          docker run conda-docker-dev-2:latest python -c "import numpy; import sys; print(sys.version_info); print('I ran conda-docker-dev-2')"
