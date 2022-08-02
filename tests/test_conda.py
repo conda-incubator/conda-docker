@@ -3,7 +3,7 @@ import os
 import pytest
 
 from conda_docker.conda import (
-    build_docker_environment,
+    build_docker_environment_image,
     find_user_conda,
     conda_info,
     find_precs,
@@ -50,13 +50,15 @@ class TestCondaMake:
         CondaMakeData.records = records
 
     def test_build_docker_environment(self, class_tmpdir):
-        build_docker_environment(
+        image = build_docker_environment_image(
             "frolvlad/alpine-glibc:latest",
             "example:test",
             CondaMakeData.records,
-            class_tmpdir / "test.tar",
             CondaMakeData.default_prefix,
             CondaMakeData.download_dir,
             CondaMakeData.user_conda,
             [],  # channels_remap
         )
+        assert image.name == 'example'
+        assert image.tag == 'test'
+        assert len(image.layers) > 2
