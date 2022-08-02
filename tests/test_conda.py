@@ -59,6 +59,6 @@ class TestCondaMake:
             CondaMakeData.user_conda,
             [],  # channels_remap
         )
-        assert image.name == 'example'
-        assert image.tag == 'test'
+        assert image.name == "example"
+        assert image.tag == "test"
         assert len(image.layers) > 2

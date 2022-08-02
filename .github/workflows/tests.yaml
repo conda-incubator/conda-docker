@@ -22,6 +22,22 @@ jobs:
           environment-file: environment-dev.yaml
           auto-activate-base: false
 
-      - run: |
+      - name: Conda environment information
+        run: |
           conda info
           conda list
+
+      - name: Black Formatting
+        run: |
+          black --version
+          black conda_docker --diff
+          black --check conda_docker
+
+      - name: Flake8 formatting
+        run: |
+          flake8 --version
+          flake8
+
+      - name: Unit Tests
+        run: |
+          pytest
