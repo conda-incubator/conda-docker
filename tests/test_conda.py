@@ -51,7 +51,7 @@ class TestCondaMake:
 
     def test_build_docker_environment(self, class_tmpdir):
         image = build_docker_environment_image(
-            "frolvlad/alpine-glibc:latest",
+            "library/debian:sid-slim",
             "example:test",
             CondaMakeData.records,
             CondaMakeData.default_prefix,

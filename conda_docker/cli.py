@@ -33,7 +33,7 @@ def init_subcommand_build(subparser):
         "--base",
         type=str,
         # mimimal image with glibc
-        default="frolvlad/alpine-glibc:latest",
+        default="library/debian:sid-slim",
         help="base image:tag to use for docker build",
     )
     parser.add_argument(
