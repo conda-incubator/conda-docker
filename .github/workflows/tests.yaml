@@ -22,6 +22,10 @@ jobs:
           environment-file: environment-dev.yaml
           auto-activate-base: false
 
+      - name: Install conda-docker
+        run: |
+          pip install .
+
       - name: Conda environment information
         run: |
           conda info
@@ -46,3 +50,9 @@ jobs:
       - name: Unit Tests
         run: |
           pytest
+
+      - name: CLI Tests
+        run: |
+          conda-docker --help
+          conda-docker -n conda-docker-dev -i conda-docker:latest -o conda-docker-dev.docker.tar
+          docker load --input conda-docker-dev.docker.tar
