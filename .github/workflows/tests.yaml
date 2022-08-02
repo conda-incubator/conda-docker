@@ -1,0 +1,27 @@
+name: "Tests"
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+jobs:
+  tests:
+    name: "Test conda-docker"
+    runs-on: "ubuntu-latest"
+    defaults:
+      run:
+        shell: bash -l {0}
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          activate-environment: conda-docker-dev
+          environment-file: environment-dev.yaml
+          auto-activate-base: false
+
+      - run: |
+          conda info
+          conda list

@@ -1,0 +1,12 @@
+name: conda-docker-dev
+channels:
+ - conda-forge
+dependencies:
+ - python
+ - conda
+ - mamba
+ - conda-standalone
+ - fakechroot
+ - python-docker
+ # dev
+ - pytest
