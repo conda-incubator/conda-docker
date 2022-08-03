@@ -117,45 +117,40 @@ def get_dist_name(fn):
 
 
 def _precs_from_environment(environment, list_flag, download_dir, user_conda):
-    # get basic data about the environment's packages
-    json_listing = subprocess.check_output(
-        [user_conda, "list", list_flag, environment, "--json"]
-    )
-    listing = json.loads(json_listing)
-    packages = {p["dist_name"]: p for p in listing}
-    # get the package install order and MD5 sums,
-    # creating a tuple of dist_name, URL, MD5, filename (fn)
     explicit = subprocess.check_output(
         [user_conda, "list", list_flag, environment, "--explicit", "--json", "--md5"],
+        encoding="utf-8",
         universal_newlines=True,
     )
-    ordering = []
+    packages = []
     for line in explicit.splitlines():
         if not line or line.startswith("#") or line.startswith("@"):
             continue
+
         url, _, md5 = line.rpartition("#")
         _, _, fn = url.rpartition("/")
-        dist_name = get_dist_name(fn)
-        ordering.append((dist_name, url, md5, fn))
 
-    # now, create PackageCacheRecords
-    precs = []
-    for dist_name, url, md5, fn in ordering:
-        package = packages[dist_name]
-        platform_arch = package.pop("platform")  # noqa
+        dist = Dist.from_url(url)
         package_tarball_full_path = os.path.join(download_dir, fn)
-        extracted_package_dir = os.path.join(download_dir, dist_name)
-        precs.append(
+        extracted_package_dir = os.path.join(download_dir, dist.dist_name)
+
+        packages.append(
             PackageCacheRecord(
                 url=url,
                 md5=md5,
                 fn=fn,
                 package_tarball_full_path=package_tarball_full_path,
                 extracted_package_dir=extracted_package_dir,
-                **package,
+                channel=dist.channel,
+                base_url=dist.base_url,
+                build_number=dist.build_number,
+                build_string=dist.build_string,
+                subdir=dist.platform,
+                name=dist.name,
+                version=dist.version,
             )
         )
-    return precs
+    return packages
 
 
 def precs_from_environment_name(environment, download_dir, user_conda):
