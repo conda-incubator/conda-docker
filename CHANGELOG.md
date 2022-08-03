@@ -4,6 +4,23 @@ conda-docker Change Log
 
 <!-- current developments -->
 
+## v0.1.0
+
+**Changed:**
+
+* Refactor docker logic into [python-docker](https://github.com/costrouc/python-docker) package for docker images building
+* Decrease wordiness of conda-docker on builds
+* Github-Actions for CI tests
+
+**Fixed**
+
+* Using `debian:sid-slim` as default base for docker images
+
+**Authors**
+
+* Chris Ostrouchov
+
+
 ## v0.0.3
 **Changed:**
 
