@@ -301,9 +301,9 @@ def fetch_precs(download_dir, precs):
             os.path.isfile(package_tarball_full_path)
             and md5_files([package_tarball_full_path]) == prec.md5
         ):
-            LOGGER.info(f"already have: {prec.fn}")
+            LOGGER.debug(f"already have: {prec.fn}")
         else:
-            LOGGER.info(f"fetching: {prec.fn}")
+            LOGGER.debug(f"fetching: {prec.fn}")
             download(prec.url, os.path.join(download_dir, prec.fn))
 
         if not os.path.isdir(extracted_package_dir):
@@ -465,7 +465,9 @@ def chroot_install(
             "--prefix",
             host_conda_opt,
             "--extract-conda-pkgs",
-        ]
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
     # now install packages in chroot
     env = dict(os.environ)
@@ -492,6 +494,8 @@ def chroot_install(
         ],
         env=env,
         cwd=host_conda_opt,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
     # clean up hard links
@@ -592,6 +596,8 @@ def add_conda_layers(
         )
     else:
         raise ValueError(f"layering strategy not recognized: {layering_strategy}")
+
+    LOGGER.info(f"docker image {image.name}:{image.tag} has {len(image.layers)} layers")
 
 
 def build_docker_environment(

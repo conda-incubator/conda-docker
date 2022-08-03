@@ -22,7 +22,7 @@ def cli(args):
         sys.exit(1)
 
     args = parser.parse_args(args)
-    init_logging()
+    init_logging(args.debug)
     args.func(args)
 
 
@@ -54,6 +54,11 @@ def init_subcommand_build(subparser):
     )
     parser.add_argument(
         "-o", "--output", type=str, help="filename for docker image", required=True
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable debug logging",
     )
     parser.add_argument(
         "-s",
