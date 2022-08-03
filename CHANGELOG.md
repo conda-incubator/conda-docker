@@ -4,6 +4,12 @@ conda-docker Change Log
 
 <!-- current developments -->
 
+## v0.1.1
+
+**Fixed**
+
+* Bug in `_precs_from_environment(...)` looks to be larger conda issues also simplified function in the process
+
 ## v0.1.0
 
 **Changed:**
