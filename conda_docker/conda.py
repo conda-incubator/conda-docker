@@ -10,6 +10,7 @@ import shutil
 import logging
 import tempfile
 import subprocess
+from typing import List
 
 from python_docker.base import Image
 from python_docker.registry import Registry
@@ -595,17 +596,33 @@ def add_conda_layers(
     LOGGER.info(f"docker image {image.name}:{image.tag} has {len(image.layers)} layers")
 
 
+def parse_image_name(name):
+    parts = name.split(":")
+    if len(parts) == 1:
+        return parts[0], "latest"
+    return parts
+
+
 def build_docker_environment(
-    base_image,
-    output_image,
+    base_image: str,
+    output_image: str,
     records,
-    output_filename,
-    default_prefix,
-    download_dir,
-    user_conda,
-    channels_remap,
-    layering_strategy="layered",
+    output_filename: str,
+    default_prefix: str,
+    download_dir: str,
+    user_conda: str,
+    channels_remap: List,
+    layering_strategy: str = "layered",
 ):
+    base_image_name, base_image_tag = parse_image_name(base_image)
+    if base_image == "scratch":
+        base_image = Image(name=base_image_name, tag=base_image_tag)
+    else:
+        LOGGER.info(f"pulling base image {base_image_name}:{base_image_tag}")
+        with timer(LOGGER, "pulling base image"):
+            registry = Registry()  # using dockerhub only at the moment
+            base_image = registry.pull_image(base_image_name, base_image_tag)
+
     image = build_docker_environment_image(
         base_image,
         output_image,
@@ -623,7 +640,7 @@ def build_docker_environment(
 
 
 def build_docker_environment_image(
-    base_image,
+    base_image: Image,
     output_image,
     records,
     default_prefix,
@@ -632,28 +649,11 @@ def build_docker_environment_image(
     channels_remap,
     layering_strategy="layered",
 ):
-    def parse_image_name(name):
-        parts = name.split(":")
-        if len(parts) == 1:
-            return parts[0], "latest"
-        return parts
-
-    base_image_name, base_image_tag = parse_image_name(base_image)
     output_image_name, output_image_tag = parse_image_name(output_image)
+    base_image.name = output_image_name
+    base_image.tag = output_image_tag
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        if base_image == "scratch":
-            image = Image(name=output_image_name, tag=output_image_tag)
-        else:
-            LOGGER.info(f"pulling base image {base_image_name}:{base_image_tag}")
-            with timer(LOGGER, "pulling base image"):
-                registry = Registry(
-                    hostname="https://registry-1.docker.io"
-                )  # using dockerhub only at the moment
-                image = registry.pull_image(base_image_name, base_image_tag)
-                image.name = output_image_name
-                image.tag = output_image_tag
-
         LOGGER.info("building conda environment")
         with timer(LOGGER, "building conda environment"):
             chroot_install(
@@ -666,7 +666,7 @@ def build_docker_environment_image(
             )
 
         add_conda_layers(
-            image,
+            base_image,
             str(tmpdir),
             arcpath="/",
             filter=conda_file_filter(),
@@ -674,4 +674,4 @@ def build_docker_environment_image(
             layering_strategy=layering_strategy,
         )
 
-        return image
+        return base_image
