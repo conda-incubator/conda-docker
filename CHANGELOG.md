@@ -4,6 +4,12 @@ conda-docker Change Log
 
 <!-- current developments -->
 
+## v0.1.2
+
+**Changed**
+
+* Make docker registry credentials configurable via environment variables #19
+
 ## v0.1.1
 
 **Fixed**
