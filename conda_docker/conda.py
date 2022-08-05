@@ -603,6 +603,24 @@ def parse_image_name(name):
     return parts
 
 
+def pull_container_image(base_image: str):
+    base_image_name, base_image_tag = parse_image_name(base_image)
+    if base_image == "scratch":
+        image = Image(name=base_image_name, tag=base_image_tag)
+    else:
+        LOGGER.info(f"pulling base image {base_image_name}:{base_image_tag}")
+        with timer(LOGGER, "pulling base image"):
+            registry = Registry(
+                hostname=os.environ.get(
+                    "CONDA_DOCKER_REGISTRY_URL", "https://registry-1.docker.io"
+                ),
+                username=os.environ.get("CONDA_DOCKER_REGISTRY_USERNAME"),
+                password=os.environ.get("CONDA_DOCKER_REGISTRY_PASSWORD"),
+            )
+            image = registry.pull_image(base_image_name, base_image_tag)
+    return image
+
+
 def build_docker_environment(
     base_image: str,
     output_image: str,
@@ -614,17 +632,8 @@ def build_docker_environment(
     channels_remap: List,
     layering_strategy: str = "layered",
 ):
-    base_image_name, base_image_tag = parse_image_name(base_image)
-    if base_image == "scratch":
-        base_image = Image(name=base_image_name, tag=base_image_tag)
-    else:
-        LOGGER.info(f"pulling base image {base_image_name}:{base_image_tag}")
-        with timer(LOGGER, "pulling base image"):
-            registry = Registry()  # using dockerhub only at the moment
-            base_image = registry.pull_image(base_image_name, base_image_tag)
-
     image = build_docker_environment_image(
-        base_image,
+        pull_container_image(base_image),
         output_image,
         records,
         default_prefix,
