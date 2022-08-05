@@ -4,6 +4,7 @@ import pytest
 
 from conda_docker.conda import (
     build_docker_environment_image,
+    pull_container_image,
     find_user_conda,
     conda_info,
     find_precs,
@@ -21,6 +22,7 @@ class CondaMakeData:
 
     user_conda = default_prefix = None
     download_dir = precs = records = None
+    base_image = None
 
 
 @skip_if_conda_build
@@ -51,7 +53,7 @@ class TestCondaMake:
 
     def test_build_docker_environment(self, class_tmpdir):
         image = build_docker_environment_image(
-            "library/debian:sid-slim",
+            pull_container_image("library/debian:sid-slim"),
             "example:test",
             CondaMakeData.records,
             CondaMakeData.default_prefix,
