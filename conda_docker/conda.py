@@ -161,6 +161,44 @@ def precs_from_environment_name(environment, download_dir, user_conda):
 def precs_from_environment_prefix(environment, download_dir, user_conda):
     return _precs_from_environment(environment, "--prefix", download_dir, user_conda)
 
+def pip_precs_from_environment_prefix(environment):
+    pip_freeze_output = subprocess.check_output(
+        [f"{environment}/bin/python", "-m", "pip", "freeze"],
+        encoding="utf-8",
+        universal_newlines=True,
+    )
+
+    pip_package_metadatas = []
+    for line in pip_freeze_output.splitlines():
+        line_parts = line.split("==")
+        if len(line_parts) == 2:
+            package_name = line_parts[0]
+            pip_package_metadatas.append(subprocess.check_output(
+                [f"{environment}/bin/python", "-m", "pip", "show", "-f", package_name],
+                encoding="utf-8",
+                universal_newlines=True,
+            ))
+
+    # The output of `pip show -f package` looks something like:
+    
+    # Name: foopackage
+    # Location: /opt/conda/envs/some_env/site-packages
+    # Files:
+    #   foopackage/__init__.py 
+    #   foopackage/foo.py
+    
+    # We'll use this information to build a list of files to copy into the image.
+
+    pip_file_paths = []
+    for metadata in pip_package_metadatas:
+        pip_file_names = metadata.split("Files:\n")[-1].split()
+        pip_path_prefix = metadata.split("Location: ")[1].split()[0]
+        pip_path_after_env = pip_path_prefix.split(environment)[1]
+
+        pip_file_names_no_cache = filter(lambda name: not name.endswith(".pyc"), pip_file_names)
+        pip_file_paths += list(map(lambda path: os.path.join(pip_path_after_env, path), pip_file_names_no_cache))
+
+    return pip_file_paths
 
 def precs_from_package_specs(
     package_specs,
@@ -647,11 +685,22 @@ def build_docker_environment(
     with timer(LOGGER, "writing docker file"):
         image.write_filename(output_filename)
 
+def copy_pip_packages(pip_targ_dir, pip_env, pip_files):
+    for pip_file in pip_files:
+        # Preserve the original pip file paths from the download dir to the target dir
+        # by concatenating the start of the target dir with the end of source file path
+        pip_path_source = os.path.join(pip_env, pip_file[1:])
+        pip_path_target = os.path.join(pip_targ_dir, pip_file[1:pip_file.rindex('/')])
+        if not os.path.isdir(pip_path_target):
+            os.makedirs(pip_path_target)
+        shutil.copy(pip_path_source, pip_path_target)
 
 def build_docker_environment_image(
     base_image: Image,
     output_image,
     records,
+    pip_files,
+    pip_env,
     default_prefix,
     download_dir,
     user_conda,
@@ -664,6 +713,7 @@ def build_docker_environment_image(
 
     with tempfile.TemporaryDirectory() as tmpdir:
         LOGGER.info("building conda environment")
+
         with timer(LOGGER, "building conda environment"):
             chroot_install(
                 str(tmpdir),
@@ -674,6 +724,14 @@ def build_docker_environment_image(
                 channels_remap,
             )
 
+            pip_targ_dir = os.path.join(str(tmpdir), "opt", "conda")
+
+            copy_pip_packages(
+                pip_targ_dir,
+                pip_env,
+                pip_files,
+            )
+        
         add_conda_layers(
             base_image,
             str(tmpdir),
@@ -681,6 +739,10 @@ def build_docker_environment_image(
             filter=conda_file_filter(),
             records=records,
             layering_strategy=layering_strategy,
+        )
+        add_single_conda_layer(
+            base_image,
+            pip_targ_dir,
         )
 
         return base_image
