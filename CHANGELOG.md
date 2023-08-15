@@ -82,5 +82,3 @@ conda-docker Change Log
 **Authors:**
 
 * Anthony Scopatz
-
-
