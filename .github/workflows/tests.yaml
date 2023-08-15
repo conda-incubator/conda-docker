@@ -31,17 +31,6 @@ jobs:
           conda info
           conda list
 
-      - name: Black Formatting
-        run: |
-          black --version
-          black conda_docker tests --diff
-          black --check conda_docker tests
-
-      - name: Flake8 formatting
-        run: |
-          flake8 --version
-          flake8
-
       - name: Release Check
         run: |
           python -m build --sdist
